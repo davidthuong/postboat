@@ -1,4 +1,4 @@
-# Postboat
+<img src="brand/postboat-wordmark-640.png" alt="Postboat" width="420">
 
 Tool migrate mailbox **từ nhà cung cấp mail này sang nhà cung cấp khác**, dựng
 trên nền [imapsync](https://github.com/imapsync/imapsync).

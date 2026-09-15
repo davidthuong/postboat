@@ -8,3 +8,9 @@
 *.ini  text eol=lf
 *.csv  text eol=lf
 *.md   text eol=lf
+
+# Anh logo la nhi phan -- dung de git dong vao, va tuyet doi khong doi
+# ket thuc dong trong do.
+*.png binary
+*.jpg binary
+*.svg text eol=lf
