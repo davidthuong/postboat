@@ -1,7 +1,8 @@
 # Nhật ký thay đổi
 
-Dự án chưa gắn tag phát hành nào, nên các mốc dưới đây nhóm theo ngày chứ không
-theo số phiên bản. `postboat.py --version` hiện báo **1.1.0**.
+**`v1.1.0`** là tag đầu tiên của dự án, gắn ngày 16/09/2026 — nó đánh dấu toàn
+bộ trạng thái mô tả bên dưới, không riêng phần cuối cùng. Lịch sử trước đó không
+có tag nào, nên các mốc được nhóm theo ngày chứ không theo số phiên bản.
 
 Phần lớn các mục "Sửa" ở đây đến từ những cuộc migrate chạy thật, không phải từ
 đọc lại code — chỗ nào có số liệu cụ thể là chỗ đó có một đêm trực đứng sau.
