@@ -11,7 +11,8 @@ Mốc thời gian tính ngược từ **D-0 = đêm cutover**.
 
 ## D-10 · Khảo sát, trước khi báo giá
 
-- [ ] Nguồn là gì? Chạy `postboat.py providers <tên>` để xem phải chuẩn bị gì
+- [ ] Nguồn là gì? Chạy `postboat.py providers <tên>` để xem phải chuẩn bị gì,
+      đầy đủ ở [docs/nguon.md](docs/nguon.md)
 - [ ] Bao nhiêu mailbox, tổng dung lượng bao nhiêu
 - [ ] Hộp lớn nhất bao nhiêu **mail** — đây mới là con số quyết định lịch, không
       phải số GB. Xem [Ước lượng thời gian](#ước-lượng-thời-gian-để-báo-giá)
@@ -51,7 +52,8 @@ Copy phần này gửi cho admin bên khách:
       server cũ
 - [ ] Bật IMAP ở cấp tổ chức bên nguồn
 - [ ] Tạo App Password cho từng hộp thư (Gmail/Yahoo/Zoho/iCloud), hoặc cấp
-      quyền cho app OAuth (M365), hoặc tài khoản quản trị (Dovecot/Zimbra)
+      quyền cho app OAuth (M365), hoặc tài khoản quản trị (Dovecot/Zimbra) —
+      cách làm từng nguồn: [docs/nguon.md](docs/nguon.md)
 - [ ] **Đóng băng việc đổi mật khẩu** từ giờ tới sau cutover — một người đổi
       mật khẩu giữa chừng là một hộp thư dừng lại mà không ai biết
 - [ ] Không tạo hộp thư mới, không đổi tên hộp thư trong giai đoạn này

@@ -9,6 +9,21 @@ Phần lớn các mục "Sửa" ở đây đến từ những cuộc migrate ch�
 
 ---
 
+## 16/09/2026 — Tách tài liệu nguồn
+
+### Đổi
+
+- **`docs/nguon.md`** — mục "Chuẩn bị phía nguồn" ra file riêng, 255 dòng, đúng
+  nguyên văn cũ. Nó chiếm 20% README nhưng không ai đọc tuần tự: người ta nhảy
+  vào đúng mục Gmail hoặc M365 rồi thoát, nên để nguyên khối ở giữa dòng chảy
+  "cài → cấu hình → chạy thử → chạy thật" chỉ làm đứt mạch. README còn 1077
+  dòng, đọc được từ đầu đến cuối.
+- README giữ lại phần khai `provider` cùng một trỏ dẫn ở đúng chỗ cũ, nên thứ tự
+  các bước không đổi. Các link cũ trỏ vào mục đã chuyển được sửa sang file mới;
+  RUNBOOK trỏ thêm ở D-10 và D-7.
+
+---
+
 ## 16/09/2026 — Thương hiệu
 
 ### Đổi
