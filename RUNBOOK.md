@@ -29,7 +29,9 @@ Mốc thời gian tính ngược từ **D-0 = đêm cutover**.
 
 ## D-7 · Dựng
 
-- [ ] `git clone` + `sudo ./install.sh` trên VPS
+- [ ] Cài hoặc cập nhật tool trên VPS — làm theo
+      [deploy/README.md](deploy/README.md), phần 1 nếu máy mới, phần 2 nếu máy
+      đã có sẵn từ job trước
 - [ ] `postboat.py doctor` — xanh hết mới đi tiếp
 - [ ] `cp config.example.ini config.ini`, điền `[source]` và `[dest]`
 - [ ] Điền `[handover]`: tên khách, bên thực hiện, người ký. Làm bây giờ để

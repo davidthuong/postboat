@@ -74,26 +74,17 @@ lại lệnh nhưng che đường dẫn các file đó.
 ## Cài trên VPS
 
 ```bash
-git clone <repo> postboat && cd postboat
-chmod +x install.sh postboat.py
-sudo ./install.sh
+git clone https://github.com/davidthuong/postboat.git /opt/postboat && cd /opt/postboat && sudo ./install.sh
 ```
 
-`install.sh` tải imapsync từ GitHub về `/usr/local/bin/imapsync`, rồi cài các
-module Perl nó cần (apt trên Debian/Ubuntu, dnf trên RHEL/Alma, phần thiếu bù
-bằng `cpanm`).
+`install.sh` tải imapsync về `/usr/local/bin/imapsync` rồi cài các module Perl nó
+cần. Nó **không giữ danh sách module cứng** — đọc thẳng các dòng `use`/`require`
+trong file imapsync vừa tải, nên luôn khớp với đúng bản đang cài. Danh sách viết
+tay sẽ luôn lệch theo thời gian; đọc từ nguồn thì không.
 
-Script **không giữ danh sách module cứng**. Nó đọc thẳng các dòng `use`/`require`
-trong file imapsync vừa tải, nên luôn khớp với đúng bản đang cài. Sau đó nó chạy
-`imapsync --version` trong một vòng lặp: mỗi lần Perl báo `Can't locate Foo/Bar.pm`
-thì cài đúng module đó rồi thử lại, tới khi imapsync chạy được. Danh sách viết tay
-sẽ luôn lệch theo thời gian; đọc từ nguồn thì không.
-
-Muốn ghim phiên bản imapsync cụ thể:
-
-```bash
-sudo IMAPSYNC_REF=v2.290 ./install.sh
-```
+> **Toàn bộ quy trình triển khai nằm ở [deploy/README.md](deploy/README.md)** —
+> cài lần đầu, cập nhật khi có bản mới, chạy như dịch vụ systemd, mở dashboard ra
+> ngoài qua HTTPS, và gỡ bỏ khi xong việc. Đừng tra rải rác, ở đó có hết.
 
 ---
 
