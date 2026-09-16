@@ -13,8 +13,8 @@ Mốc thời gian tính ngược từ **D-0 = đêm cutover**.
 
 - [ ] Nguồn là gì? Chạy `postboat.py providers <tên>` để xem phải chuẩn bị gì
 - [ ] Bao nhiêu mailbox, tổng dung lượng bao nhiêu
-- [ ] Hộp lớn nhất bao nhiêu **mail** (không phải bao nhiêu GB — xem cảnh báo
-      Gmail bên dưới)
+- [ ] Hộp lớn nhất bao nhiêu **mail** — đây mới là con số quyết định lịch, không
+      phải số GB. Xem [Ước lượng thời gian](#ước-lượng-thời-gian-để-báo-giá)
 - [ ] Admin bên nguồn có bật được IMAP cho cả tổ chức không
 - [ ] Nguồn là Microsoft 365? → phải dựng app OAuth trên Entra ID, tính thêm
       một buổi và một khoản phụ thu
@@ -85,6 +85,34 @@ Copy phần này gửi cho admin bên khách:
 
 > Gmail làm **đích** thì chậm gấp khoảng 8 lần (đo thật: 38,6 KiB/s so với
 > 311,6 KiB/s sang IceWarp). Nhân lịch lên tương ứng.
+
+> **Microsoft 365 làm nguồn cũng nghẽn theo số mail, không theo dung lượng** —
+> khác cơ chế với Gmail nhưng cùng hệ quả. Đo thật 15/09/2026, M365 → IceWarp,
+> `workers = 1`, một hộp thư: **3.130 mail / 129,1 MB trong 1h05m** — tức
+> **0,79 mail/giây**, khoảng 33 KB/s, mail trung bình 41 KB. Một lá 41 KB mà
+> mất hơn một giây thì nghẽn nằm ở tần suất request, không phải ở băng thông.
+>
+> Một hộp thư, một tenant, một lần chạy — là điểm dữ liệu để báo giá, không
+> phải một quy luật.
+
+---
+
+### Ước lượng thời gian để báo giá
+
+Lấy **số mail** nhân với giây mỗi mail, đừng lấy số GB chia băng thông:
+
+| Nguồn | Đo được | Một hộp 3.000 mail mất khoảng |
+|---|---|---|
+| Microsoft 365 | 0,79 mail/giây (`workers = 1`) | 1 giờ |
+| Gmail | không đoán được — xem cảnh báo ở trên | chạy `sync --sizes` trước |
+
+Với M365, đòn bẩy là **chạy song song nhiều mailbox**, không phải làm một hộp
+nhanh lên: throttling của nó là tức thời chứ không phải hạn mức ngày.
+
+Chưa đo bao giờ thì đo: chạy 3 hộp với `workers = 3`, cộng tổng mail chia tổng
+giây. Lên gần 2,4 mail/giây là trần chưa chạm, còn đẩy tiếp được; vẫn quanh 0,79
+thì trần là của tenant chứ không phải của kết nối, và tăng workers chỉ tổ ăn
+`Server Unavailable`.
 
 ---
 
