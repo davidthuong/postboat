@@ -383,10 +383,15 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
-        # Trang tu phuc vu, khong nhung gi ben ngoai
+        # Trang tu phuc vu, khong nhung gi ben ngoai.
+        #
+        # img-src them 'data:' cho rieng anh: logo duoc nhung thang vao trang
+        # duoi dang data: URI (xem ICON trong web_ui.py) chu khong tai tu mot
+        # duong dan nao. Khong noi long cho nao khac -- script, style, fetch
+        # van bi bo trong 'self'.
         self.send_header("Content-Security-Policy",
-                         "default-src 'self'; style-src 'unsafe-inline'; "
-                         "script-src 'unsafe-inline'")
+                         "default-src 'self'; img-src 'self' data:; "
+                         "style-src 'unsafe-inline'; script-src 'unsafe-inline'")
         for key, value in (extra or {}).items():
             self.send_header(key, value)
         self.end_headers()

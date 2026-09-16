@@ -38,9 +38,19 @@ lên tài liệu khổ lớn, cần đặt lại một bản `.svg` — đừng 
 luôn tệ hơn bản vẽ mới.
 
 **Icon chưa có bản rút gọn cho cỡ nhỏ.** Ở 16×16 hay 32×32, cái phong bì nằm
-trong lòng thuyền sẽ dính vào nhau thành một khối không đọc ra hình gì. Favicon
-thật cần một bản vẽ riêng đơn giản hơn — bỏ vệt sóng, bỏ nét trong lòng phong
-bì, chỉ giữ bóng thuyền và một mảng lime.
+trong lòng thuyền dính vào nhau thành một khối không đọc ra hình gì — đã thử và
+đúng như vậy. Favicon thật cần một bản vẽ riêng đơn giản hơn: bỏ vệt sóng, bỏ
+nét trong lòng phong bì, chỉ giữ bóng thuyền và một mảng lime.
+
+> Dashboard hiện **tạm** dùng `postboat-icon.png` cắt sát nội dung rồi thu về
+> 64px, nhúng thẳng vào trang dưới dạng `data:` URI (xem `ICON` trong
+> `postboat/web_ui.py`). Ở 26px trên header thì đọc được; ở 16px trên tab trình
+> duyệt thì chỉ còn là một vệt xanh-navy. Chấp nhận được, nhưng chưa phải bản
+> cuối.
+
+Muốn thay: thay `brand/postboat-icon.png` rồi sinh lại chuỗi `ICON`. Cắt sát
+nội dung trước khi thu nhỏ — lề trong suốt của file gốc chiếm chỗ và làm hình
+nhỏ thêm một cách vô ích.
 
 ## Câu chuyện tên
 

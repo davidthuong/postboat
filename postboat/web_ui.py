@@ -1,12 +1,23 @@
 # -*- coding: utf-8 -*-
 """Trang HTML cua dashboard. Tu chua tat ca, khong tai gi tu ben ngoai."""
 
+# Logo nhung thang vao trang duoi dang data: URI chu khong phai mot duong dan
+# /logo.png. Ly do: trang nay tu chua tat ca -- khong goi ra ngoai thi khong co
+# gi de chan, va khong phai them mot route phuc vu file tinh nao vao web.py.
+# Doi lai, CSP phai cho phep img-src data: (xem _send trong web.py).
+#
+# Anh goc: brand/postboat-icon.png, cat sat noi dung roi thu ve 64px. O 16px no
+# chi con la mot vet xanh-navy; favicon that van can mot ban ve rieng don gian
+# hon -- xem brand/README.md.
+ICON = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAASO0lEQVR42u1aeXRV1dX/7XPufXPyEkJCGMIYxkDCFIJMEYqIfqACjVILXVQ7OOBQHHDApqiVZVtb69cPKSJqrVB4DogFFQeMFVAoyGQECoYwk4GMb7r3nrO/P94L4EBbbat2md9b6628e1/uOXvv395nDw9oRSta0YpWtKIVrWhFK1rxTYT8L947ARDfJGNRwmDFxjdF8KSFi41PMpUIKCguSEvP6Zt3ljLoiy7ydRKYgGIBlDEAdfbN4pJ+gX3lVBCuV2PizTxaKR4YSJPtmdWrDUeNS4ByGwD/NyngLIGzGAh9TOAbfpvrfnGJ0b/xFI2KhvUYx8YwQdTJlyrRsYdAh57A1nW2Vo4Q0uWMqju0b0OSKerzbML4koUWQAkBVQSUOQmLlWkAWMklck7Brr6NtTwy3ozzF95Jw4REd39QoGs/ie4FhD5FQvcYIlTv/gY9OjcmrBg7ae2EUV9FEwBsAIoJKPvaMUAkae187KIEug7o2/NUNYoiYR6rLAwXEr39QUNmdQG65xP6FpHuVShVhx4CATcJByAPiFYvs/HQd8O48SmvOrgTxupH4huE2jtKa9DndQP6EmjOAEAC6Dk0v9uJY1ZRrAljHItHCoE+gTTDld1NoOsAoE8Rce9h0mnfXcDvhmBA2GDYFmDFAa+XcGgPYc6IRs4fb9CDz3t1aIktHrspHukxEL32btx7LBkU9dfBBQgABzvkDhLSNSvcqM/72854XmqG4es+QKB7gUDvQkKfQrLb50r4XCwYIAswLIvRGElojpImcrkJ8Rjh11eFEWgj6JrfujiqmHoOJcefJv3HD/JoACuSbPvKFSAAcHqHvBxNar1jU3DEJS6MnirQvpe0O3YjBLwgBos4YNinBWaAACIGSUo8BAytAI9L4OGb4ziwxcE9L/uQmUPU0MTI6S05q6tCZblzYUIBn3+j/zHrO3BypKQgKyf+0Q7LMaTQvfsJ6fHCONXEsq6ZKR5lgJmFZAhJEKLFMROurBwgxUdY+6SFVx6N4/KfeTBsokBTAwMMeL0Q3QoAFdcjS9cXG8lYQ1+1AjQApHSkveFGVTftVo+7x2CDSi9potljwrTjbY1gCsEfAGudkJUI3CJ08nyEUoDfL1G+jfH7G+MomGig5A4Dzc0MKQEwQwOy93DSQorcJbNr8j5vbBP/Es2Liw2gRCafc/aiDIBObNtTGw/jb5Emwr1P+PS81X4ONwK3nx/GL6+OoaoCSPcLFhKwbdCZRxBYA6YJNNUxHr4qAk8A+PEjLgjB0DqxGgnAVozcoVD+NCEaa9W4ZNok/smUmv6VYohRWakFlTOfOXoEUCyBYQTA0FytH/BmDAWJIUXfEbpbXynGzjDIl0ZYu9jCmsU2aSL0GCgpJYUQtxPCCQIYAh63wP/eEMfONxXmhnwYUEiorwdM12nWQCtCahvSW9awrD2iLWXVLAcqW04fAkokijMlKrsKoFIDgCAwJ/+WX9C/0a7P0P7huJzB8Vj79r0G8g/vujX87rp1dmKRcgaq1XwAvvSsTvEITRoxxdDSyxIgDD7fxMhvm6g7obHqIYu2rFNIzRTokW/ANIF4DBz0S3p+oY3Qg3GYXmIVI+qYJ9EhR7Blg5QChACUIvgDhP3btdj/V5U+4OJOS/pk97ErKyuTTCxnVFZqoFJLKTBg+PisE4c/GiKCnS9Ib9u56gvkAcUGUZkTbJe78vvf/37JgQP7se7Nt1UsEjniTwl8GExL2QEh3nc0l8sADuhIpFv9Md5569NejJgs0NTIRETweMGmAWx7U+OhWVGqO6xRdKkb3/2piQGDBW95V9Hd4yIomCAx8jITS++MsRUFXflTN190jUFuHyPcADATAmnA+mWWWnitYwSz9ejqffveAYDs3FGZLrfqSdADGxqbBtefqs8nQbkXXzg+vTkSx5ZNf7n4iyRCkgiK2TP6/IsmvbF+bYg3bd5qLg+9SC+uWYcjx0/A5/chNSWgDdM8QgJHju2vHXrZT1zmrPtcaGpkSAOwLUZqmsDLS21eMidO5001seMNG03VhKL/kbxrg0MuD+G+17zI6QGcOAxeucDGukUWdR9iYNYCE4PHS47GmADikxVaz5sQldJwv5KW1a6SbWewUnaP5uZwRkNDA4IpAYwvHoVrrp7BwdQgTbli5osH926bck4FlDJEHkAIffreg68PETueeN92bP+K2+bdcfkv7rvLBiBra0/plavW8NPLnsW2nR9I6TJFVnY71J9o4u6DY3z3s15yLGalQWlB8FvPOfSLb8dw4fUuzP6dyYcPaFr1kI3tr2vO7k505X1u5A4CmuoZXh/g9Qne+ZbGk3PjdGCzxvirXbhinokOXQVHosBPLwrj5AGfyOychZqqGoSbGtGlYwd1xdRJeub0qcjt0Y0AYPDIier9ja8WEGHvaQUwn4niiSPpH6Nzz6HdT9ZU717z3B/dQwqHIhaLU3bbIJRSeP3Nt3np0yt4/YZ3ubrqlGjT1oNHt6fDH9TEYOx+R2Pe+DAKLzEw548u2FGwdBEZbo1YI7HLS8TEiIc5Eao1gTTYk0pkR5lfXqRo5QMWvH7girv8mHyNgf+7pQFrH25U6V0z9LCCfDFz+jQx6aLxFAymoqauGW3TA861P7nbXPTwb++XInKP0mOMczLgsZq8vm5TpzostGkCtg2YQOLNBuwI8MOc8i3a035BfkHeHZveWG2frG024paFYIof2W2DAIDyD/fiqWUhLPvTanQqPIGpNwfg9flw7+QosnsBc1e4GcTEmpkJxJw447VKbI0EQ2s6HfWFIPgC4DQpUXGY8OtZUXzwZgN1GARum9oRYwZfQN+7cioKhw4CAFTXNaGqph7du3TUf16zVlwx40f7b/7x9ILf/OY3cQBMpQwxn6D/UN8vNyUg/9QQs+8CSHo9cm08lszFkwm5IICIwArw+wQilrXwzl633VJZM/fwLTfObvOrB+7hfZXHhSEklNbwuE1kZ2bAlEBNbS0eX7IKK1avxAf7PoATJ9z/SiYGjpCIagUrxrBjiVRYEFhrJoBAEjDdBJeHoBXQVCNwaJfmra9Fqfy9MNcfdaOgz2AquWQKpkyegKzsNrAVcKK6FrGYDc2MNmmpiIYb1HljJxv1tbUXResqX2GUSCCkTitg6akBA9JT6c2GuHOtZN3ocbvWRqMgBgQRQxiUyNAokaT4vBL1Dc5Ts4I7r+pSkDen6nj0l+teeMYZNqxQHjxSBbfbhNYaSmmYhkRWRhA+jwuWZeHFl9Zh6TPLsWHzJuQMcDDuO6kYNM6DjE4MpTWsKMN0E6RBiIUJVRXMf9sC7HrLpp3vNKHuoIXM7BxMufRCvmrWVCoaNhAA0NAcRW1dI5RmSCkTPk2Ebh3bqolTZhivvvzaCmnXTFd6mmxpwHzMBYrXwygbCwcg/L5icB93gP3wWLYGMTmiSbht7QIxALi0x5kW2Hr8THaQs6n/sJ7DN6//s2oIW6I5EoMhJRgAM0NrhhRAm2AAwRQfAOAvG7Zg4aLleGnNa6xctTT4W14eXRJAboHE0QOMXW87tGeDwxW7LUSqooDHS8XFQzFr5lRcNmkC0oLpAIDj1XVojsQBIhhCgCiRVFqWjV5d2/OCh36Hu+bd3zhiVFHextdXH0/KrT+mAOaEcc8VE56J9b+YtU4TLfU9JBEJtx3TMpAG5+XfuccuvvXIzFtuuV796ufz5EeHT4IouZmWAoEZWmtIQUgNeJGRlgIA+KiyAn/44yo8//wbXHHoIPxpCs31oHiU4fYQ53Rph4kXjKYZ06dhyMCEtZsjcdTWNcJSGoIIQhAI1JL+IW7Z6NIxC9u2bXe+dcl00+/zXFtbuXsRktT/rIYIgYHiWTcFOeZcTJL9pjd+dOSSx1/JjebPy/a65zfCgQRAZ70SSSvBAGF+SYzfXd3AZW+toPOKhuPAoeNwmSZwVpuGWkpczQAYHtNAx+wMAEDZho2Y9aOb+ejRKni8Bimt0LlTDpYtXYhBBf0BAMeqTiEat8EMSCFAibw5UUonV3CUg2DAB58pVOH5k42PDh58J15bMYbocvHJ3uPpoqG4uFSCwCoanekLpD3jMgOLVdS7Zn6H1R6fl8sblNMYCatIc1jHmiMq1hRRseaYEw/HtNUYVlYcjj11rtTeVCmu/8ndsOIRtE1PgaNUUnw+rQhmgFnDZZrw+ALY+NfdmPGDmzBh0nSuqq6lfvn9acTYC5HdvjMOHKjApGkzce+Dj2D/oZOQphvMnLD4p4RPuJspJbLapPINt91De/bts7p163wdETE+I6mhT9bwRZOvbufyGCVCGB6l+eA7qH4BoZBafHhAJ3+m9KqYxZJcJFxSez06akU0AUD1MUd0z1XOdzubvzhVUzPjzrk3Og+U3iEPH6+B7WiQEAAzlFIwTROpqSk4cvQ4Hn/yD3jiyafR2NiEfvkF6FcwCBlZ7SBIwHEcHNj7Id7fvAl1x46hYFghbr/lJkwYPxZxy0IkEoUh5WnfJQC246Bnl2w8vexZ53vXzDHbtW0z/2TFjp8lqr+P9yX/6br5XPFhZTS/WyzuSA+AqGUIr8vRbyyXec8usFdGmmPGG2tDdF7RUOw/dCJhGSMheE3tKTyzfCUWL1mKE8dOoPeAfOQPKURGZhaYGbZtJ60s4HJ7EAk3Y8/O7di+5T1YVhzTpl6GOTfNRp/ePdHQ0AhHKZiGRNx2kJOdgcOHD6nh4y41lKN2dRo1YGh5CAoI6c9qmH6WAqi4uFQCQFZWOYdCIQ0A/ceNy2puVGuEgKo/5b3g0Q+PLXAZ8ppYVClqKas1Ic0v7Mfvdij0QJ0cNjZPlK1dBUczopZGcziC5154EQsXPYaK/R9xj379aWDhMLTNyoZmDce2ASIIIjC3KF9DGgYM04XaqhPYueU97N21A+mZmbjhuh/jqlkz4PP5cOpUHdJS/cgI+nj0xG/rre/vFB2yskZW7tn87t+bF3xmOVxZWaYrK8t0eXk5A6UCKGNvm845BPlzgDoe320/cuW98ZIAXHnaJGmYgkxTkOkyyIBhdB9O8v11pti9eb82vSZNGDcGy0MvYPZNt2H5sj9xWmY7+takS6n/4KHw+HywrDi0UmedGgxOZn4kBLROKCeQkoKuub2R2b4jV584TmtfWIWyTe8hp1MnDMzvh4ygH7fP+7kKPf9nMzOz7UNH9219IkH9SvWvtsUJAHfMH1Xkcild8ddNW56oKEgLtBfjtNYGg1gnI5EKC5GVCfv2ibHxB7ap63x+V7x3r1yx8d0t6NSlGwpHjkFmdnuG1mTZFgAGkfhUI13QmaMzoQw6fd/t8iAWi2Hvru28bfNGikWiuPXm65DXt5f+wfW3ufwB354AgkOOHMmxzkX9L2Eu0MWT1slbwSyyo9EogsEg0jMywAzYdmKMRy1dMD6rj0afGil8YqsM1hokJEzTRFNDHaLRKJqamiGlgM/rBUkxqu7QBxuGDBlibt261f43DkZKJEoAhEKKGRRCifgAVXSvKHOYEz2608Iw4G3Ttcj0uKdKQFlKcSwSZUAJIYzk+EKftY/EBa3ZMV3uFAAgRqJGZda2FW8m03BBgwEtAEA7il0eLwxpkGEamokMZcc2NJ2seOlLmQyVlpaK+fPn6zElPxoghGup1sqbtCMDTEIaEUEiSkQEZiYpKWH4xOczRmUwoKXplhDiqXVLFzxGhNOBUEiJsVfe+ISA6MWsnRZ/IIbWnDiGwUzMzBowtGMFhDClcuw1f3lu0VyUlgrMn6//Y4MRJtNkRioAd6JdCyImaKWCmh0BIoZmAhAHoBIOzmCdYA1rEBEUa5a2HW/XwqAWDBo40LSj8Q4k0F4rrUAgQSQYcCe/EoNmAsHNRCxAFoFNAIGv1Xi8+Dtz2jKcdEez1i0F/9nWUKwdqeOGMPynU1VbsiUddrtkjDV5Lcdhl2FQvDnc+N5Lj58EgNFXXJsTt2ze/MKSI1/V7wPOOZVtcZORl88uEKy3i5YyFWc61y31QSIo0mdUDpT8H/4YM6JM3UwndoHL41ustYbtWD/YEHr08ZKSEhkKhdTfo/6/ezbI51Lo/OR1FlwNxSGtnDSAFTTAYEpETiJAQyRjB0CsAYikq2tmFmACBDQrBoQgQ9Z7PLJeR3mvcuxXtdaaocpx9nTlHwj/TQV9VTGASkpKRL9+/fjf8bDy8nIKhUIapaVUUl5OABDq149brd6KVrSiFa1oRSta0YpWtOKfwf8Di2eGg3IggvwAAAAASUVORK5CYII="
+
 PAGE = r"""<!doctype html>
 <html lang="vi">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Postboat</title>
+<link rel="icon" type="image/png" href="__ICON__">
 <style>
  :root{
    --bg:#f6f7f9; --panel:#fff; --ink:#16191d; --muted:#6b7280; --line:#e3e6ea;
@@ -96,6 +107,8 @@ PAGE = r"""<!doctype html>
            border-color:transparent;background:transparent}
  button.rm:hover:not(:disabled){color:var(--err);border-color:var(--err)}
  td.act{text-align:right;white-space:nowrap}
+ .brand{display:flex;align-items:center;gap:.5rem}
+ .logo{width:26px;height:26px;flex:none}
  /* Danh sach tep: mot dem chay 200 hop sinh ra 200 log, nen phai co khung
     cuon rieng thay vi keo trang dai ra vo tan. */
  .files{max-height:20rem;overflow:auto}
@@ -109,7 +122,10 @@ PAGE = r"""<!doctype html>
 </head>
 <body>
 <header>
-  <h1>Postboat</h1>
+  <div class="brand">
+    <img class="logo" src="__ICON__" alt="" width="26" height="26">
+    <h1>Postboat</h1>
+  </div>
   <div class="route">
     <b id="src">…</b> &rarr; <b id="dst">…</b>
   </div>
@@ -536,4 +552,4 @@ refresh();
 </script>
 </body>
 </html>
-"""
+""".replace("__ICON__", ICON)

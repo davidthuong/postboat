@@ -226,5 +226,71 @@ class TestGlobalActions(unittest.TestCase):
         self.assertEqual(marked, set(web.GLOBAL_ACTIONS))
 
 
+class TestLogo(unittest.TestCase):
+    """Logo nhung thang vao trang, khong tai tu dau ca.
+
+    Trang nay tu chua tat ca -- do la mot tinh chat, khong phai tinh co: mot
+    trang khong goi ra ngoai thi khong co gi de chan, va dashboard hay chay o
+    noi khong ra duoc Internet.
+    """
+
+    def page(self) -> str:
+        from postboat.web_ui import PAGE
+        return PAGE
+
+    def test_co_ca_favicon_lan_logo_tren_header(self):
+        page = self.page()
+        self.assertIn('rel="icon"', page)
+        self.assertIn('class="logo"', page)
+        self.assertEqual(page.count("data:image/png;base64,"), 2)
+
+    def test_khong_con_cho_giu_cho_nao(self):
+        # Quen buoc nap anh that thi trang van chay, chi la logo hong -- va
+        # trinh duyet khong keu gi ca.
+        self.assertNotIn("__ICON__", self.page())
+        self.assertNotIn("__DATA_URI__", self.page())
+
+    def test_khong_anh_nao_tai_tu_ben_ngoai(self):
+        srcs = re.findall(r'<img[^>]*\ssrc="([^"]*)"', self.page())
+        self.assertTrue(srcs, "khong tim thay the img nao")
+        for src in srcs:
+            self.assertTrue(src.startswith("data:"), src)
+
+    def test_anh_nhung_vao_la_PNG_that_64px(self):
+        """Doc thang header PNG. Mot chuoi base64 bi cat ngan van la chuoi hop
+        le, van nhung vao trang duoc, va chi lo ra khi co nguoi mo trinh duyet.
+        """
+        import base64
+        import struct
+
+        m = re.search(r"data:image/png;base64,([A-Za-z0-9+/=]+)", self.page())
+        self.assertIsNotNone(m)
+        raw = base64.b64decode(m.group(1))
+        self.assertEqual(raw[:8], b"\x89PNG\r\n\x1a\n", "khong phai PNG")
+        width, height = struct.unpack(">II", raw[16:24])
+        self.assertEqual((width, height), (64, 64))
+        self.assertEqual(raw[-8:], b"\x00\x00\x00\x00IEND\xaeB`\x82"[-8:],
+                         "PNG khong co khoi IEND -- anh bi cat ngan")
+
+
+class TestCspVanChat(WebTestCase):
+    """Noi long cho anh thi phai noi long DUNG cho anh."""
+
+    def csp(self) -> str:
+        return self.get("/").headers.get("Content-Security-Policy")
+
+    def test_cho_phep_anh_data_uri(self):
+        self.assertIn("img-src 'self' data:", self.csp())
+
+    def test_van_giu_default_src_self(self):
+        self.assertIn("default-src 'self'", self.csp())
+
+    def test_khong_noi_long_cho_script(self):
+        csp = self.csp()
+        script = [d for d in csp.split(";") if "script-src" in d][0]
+        self.assertNotIn("data:", script)
+        self.assertNotIn("http", script)
+
+
 if __name__ == "__main__":
     unittest.main()
