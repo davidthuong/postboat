@@ -23,6 +23,18 @@ python3 postboat.py providers          # xem danh sách nguồn và việc phả
 python3 postboat.py providers m365     # xem chi tiết một nguồn
 ```
 
+### Tài liệu
+
+| File | Trả lời câu gì |
+|---|---|
+| **[RUNBOOK.md](RUNBOOK.md)** | Nhận một job có khách thật thì làm gì, theo thứ tự nào. In ra tick dần |
+| README này | Vì sao từng thứ lại như vậy. Tra khi cần hiểu sâu một chỗ |
+| [CHANGELOG.md](CHANGELOG.md) | Đã thay đổi những gì, và vì sao |
+| [deploy/README.md](deploy/README.md) | Mở dashboard ra ngoài qua HTTPS |
+| [brand/README.md](brand/README.md) | Logo, bảng màu, dùng bản nào ở đâu |
+
+Đang trực một cuộc migrate thì mở **RUNBOOK**, không phải file này.
+
 ---
 
 ## Vì sao không gọi thẳng imapsync
