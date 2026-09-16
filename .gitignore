@@ -16,6 +16,7 @@ users*.csv
 users.csv.*
 
 *.pass
+*.token
 master-pass.txt
 oauth-secret.txt
 *secret*.txt
@@ -23,9 +24,16 @@ oauth-secret.txt
 # Khoa rieng cua CA testrig -- sinh boi testrig/make-certs.sh
 testrig/certs/
 
-# Ket qua chay
-logs/
-state/
+# Ket qua chay.
+#
+# 'logs*/' chu khong 'logs/', cung ly do voi config*.ini o tren: mot may chay
+# nhieu job song song thi co logs-m365b/ va state-m365b/ nam canh, va hai ten
+# do KHONG khop 'logs/'. Quan trong nhat la state-<ten>/: trong luc mot lan
+# sync dang chay, no chua src.token va dst.token -- token OAuth con han, doc
+# duoc toan bo mailbox cua tenant khach. Chung bi xoa khi chay xong, nhung
+# `git add -A` dung luc dang chay thi da kip len remote.
+logs*/
+state*/
 LOG_imapsync/
 
 __pycache__/
