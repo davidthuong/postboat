@@ -861,7 +861,8 @@ Trên đó có:
 - **Mục "Hộp thư chưa đạt"** nếu có, kèm hướng xử lý — không giấu
 - **Bảng đối chiếu ngày tháng** lấy từ lần `verify` gần nhất, kèm nói rõ phương
   pháp: lấy mẫu bao nhiêu thư mỗi folder, ngưỡng sai lệch bao nhiêu giây
-- **Mục "Không thuộc phạm vi"**: lịch, danh bạ, task, bộ lọc, chữ ký
+- **Mục "Không thuộc phạm vi"**: lịch, danh bạ, task, bộ lọc, chữ ký. Đã chạy
+  `pim` thì lịch và danh bạ rời khỏi mục này và có bảng riêng ở trên
 - **Chỗ ký của hai bên**
 
 Hai điều cố ý:
@@ -901,6 +902,9 @@ python3 postboat.py sync --only an@cu.com,binh@cu.com   # chỉ vài mailbox
 python3 postboat.py sync --resume                        # bỏ qua mailbox đã xong
 python3 postboat.py sync --workers 5                     # ghi đè số luồng song song
 python3 postboat.py sync --since-days 3                  # chỉ mail mới hơn 3 ngày
+python3 postboat.py pim --dry                            # lịch/danh bạ: chỉ đọc nguồn
+python3 postboat.py pim                                  # lịch/danh bạ: ghi CalDAV/CardDAV
+python3 postboat.py lists export.csv                     # nhóm phân phối: lists.csv + bộ lệnh tạo cho đích
 ```
 
 `providers` chạy được cả khi chưa có `config.ini` — cần biết điền gì vào
@@ -908,6 +912,44 @@ python3 postboat.py sync --since-days 3                  # chỉ mail mới hơn
 
 `--resume` dựa vào file đánh dấu trong `state/<user>/done.marker`. Muốn ép chạy
 lại một mailbox thì xoá file đó đi.
+
+`pim` là ống riêng cho lịch và danh bạ, **mặc định tắt** vì hai thứ đó không đi
+qua IMAP (vì sao: [research/calendar-contacts.md](research/calendar-contacts.md)).
+Bật bằng `[pim] enabled = true` khi hợp đồng có. Nguồn đọc được: IceWarp và
+Zimbra (CalDAV/CardDAV, mật khẩu hộp thư trong `users.csv`), Microsoft 365
+(Graph, cùng app Entra đã dùng cho IMAP nhưng phải thêm quyền ứng dụng
+`Calendars.Read` + `Contacts.Read` rồi admin consent — thiếu consent thì tool
+báo tên quyền còn thiếu). Gmail chưa: app password không đăng nhập được CalDAV
+Google. Đích ghi được: IceWarp (`/webdav/{email}/Calendar/`) và Zimbra
+(`/dav/{email}/Calendar/`) qua CalDAV/CardDAV với mật khẩu hộp thư đích; server
+CalDAV khác thì khai `webdav_base`. M365 và Gmail làm đích chưa có, vì phải ghi
+bằng Graph/OAuth. Giữ UID nên chạy lại không nhân bản; kết quả ghi
+`state/pim.json` để `handover` đưa vào biên bản. **Lời mời họp không được gửi
+lại**: đo thật trên Zimbra 8.8 (17/09/2026), PUT một cuộc họp mà hộp thư đích là
+organizer thì server gửi lời mời cho mọi người tham dự, là attendee thì gửi
+reply cho organizer, và `SCHEDULE-AGENT=CLIENT` bị bỏ qua. Nên mặc định tool bỏ
+`ORGANIZER`/`ATTENDEE` khỏi sự kiện có người tham dự (giữ dưới dạng
+`X-POSTBOAT-*`, ghi danh sách vào mô tả); `keep_attendees = true` chỉ khi admin
+đã tắt scheduling CalDAV bên đích và đã thử trên một hộp. Với đích Zimbra, lệnh
+đã đo là chặn được cả hai chiều (đặt lại `FALSE` sau khi xong):
+
+```bash
+zmprov mcf zimbraCalendarCalDavDisableScheduling TRUE && zmprov fc -a all
+```
+
+Với IceWarp làm đích thì chưa đo — thử trên một hộp có attendee trước khi bật.
+
+`lists` là nhóm phân phối (distribution group, mailing list, Google Group).
+Không có dữ liệu để chuyển, chỉ có tên nhóm và thành viên, nhưng mỗi hệ thống
+xuất một kiểu và tạo một kiểu. Tool đọc file xuất của nguồn (M365: PowerShell
+`Get-DistributionGroup` + `Get-DistributionGroupMember`; Google Workspace:
+`gam print group-members`; cách xuất ở [docs/nguon.md](docs/nguon.md)), đổi địa
+chỉ theo `users.csv` (hộp thư có trong đó lấy `dst_user`, còn lại đổi domain,
+địa chỉ ngoài domain giữ nguyên), rồi ghi `lists/lists.csv`. Đích là IceWarp thì
+ghi thêm `lists/icewarp.batch` và `lists/members/*.txt`: copy cả thư mục lên máy
+IceWarp và chạy `tool file batch` — tool **không** tự tạo tài khoản trên đích.
+Đích khác thì dùng `lists.csv` để tạo tay. Quy tắc gửi và kiểm duyệt của nhóm
+không chuyển.
 
 ---
 
@@ -1053,9 +1095,10 @@ Không có bước cài đặt nào vì bộ test chỉ dùng thư viện chuẩ
 
 - imapsync là phần mềm tự do (giấy phép NOLIMIT); tác giả có bán bản build sẵn
   và dịch vụ hỗ trợ. `install.sh` lấy mã nguồn từ repo GitHub chính thức.
-- Tool này chỉ chuyển **mail**. Lịch, danh bạ, task không đi qua IMAP — phải
-  export/import riêng. Với Zimbra thì các folder đó *có* hiện trên IMAP nhưng
-  nội dung không dùng được bên đích, nên tool bỏ qua chúng. Danh sách đầy đủ
+- Đường IMAP chỉ chuyển **mail**. Lịch và danh bạ đi ống riêng `pim` (mặc định
+  tắt, xem [Các lệnh khác](#các-lệnh-khác)); task và note thì chưa có đường
+  nào. Với Zimbra thì các folder đó *có* hiện trên IMAP nhưng nội dung không
+  dùng được bên đích, nên đường mail bỏ qua chúng. Danh sách đầy đủ
   những gì **không** đi qua được với một tenant Microsoft 365 nằm ở
   [docs/nguon.md § M365: cái gì không đi qua IMAP](docs/nguon.md#microsoft-365-cái-gì-không-đi-qua-imap).
 - Bộ lọc, chữ ký, chuyển tiếp bên nguồn cũng không được chuyển; phải tạo lại

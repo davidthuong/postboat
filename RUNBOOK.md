@@ -23,8 +23,14 @@ Mốc thời gian tính ngược từ **D-0 = đêm cutover**.
 
 > **Nói trước, đừng để khách tự phát hiện:** lịch, danh bạ, công việc, ghi chú,
 > bộ lọc, chữ ký và cấu hình chuyển tiếp **không đi qua IMAP** nên không nằm
-> trong phạm vi. Đây là câu hỏi đầu tiên của mọi khách M365. Mục "Không thuộc
-> phạm vi" trong biên bản bàn giao nói đúng điều này — gửi đoạn đó kèm báo giá.
+> trong phạm vi mặc định. Đây là câu hỏi đầu tiên của mọi khách M365. Mục "Không
+> thuộc phạm vi" trong biên bản bàn giao nói đúng điều này — gửi đoạn đó kèm báo
+> giá. Riêng lịch và danh bạ chuyển được bằng ống `pim` khi nguồn là IceWarp,
+> Zimbra hoặc M365 (README § Các lệnh khác) — là hạng mục **tính riêng**, không
+> phải "bật thêm flag": M365 cần thêm quyền Graph và một lần admin consent nữa,
+> IceWarp/Zimbra cần mật khẩu từng hộp thư cả hai đầu. Nhóm phân phối: xin file
+> xuất từ nguồn (docs/nguon.md) rồi `postboat.py lists`; bộ lệnh sinh ra chạy
+> trên máy đích, tool không tự tạo tài khoản.
 
 ---
 

@@ -9,6 +9,51 @@ Phần lớn các mục "Sửa" ở đây đến từ những cuộc migrate ch�
 
 ---
 
+## 17/09/2026 — Ống lịch và danh bạ
+
+### Thêm
+
+- **`postboat.py pim`** — ống riêng cho lịch và danh bạ, nằm ngoài đường IMAP
+  và mặc định tắt (`[pim] enabled = false`). Đọc nguồn bằng CalDAV/CardDAV
+  (IceWarp, Zimbra; Yahoo/Zoho/iCloud nếu khai `source_webdav_base`) hoặc
+  Microsoft Graph (M365, cùng app Entra đã có nhưng thêm quyền ứng dụng
+  `Calendars.Read` + `Contacts.Read` và admin consent), rồi PUT CalDAV/CardDAV
+  vào đích IceWarp hoặc Zimbra (server CalDAV khác: khai `webdav_base`; M365 và
+  Gmail làm đích chưa có vì phải ghi bằng Graph/OAuth). Giữ UID nên chạy lại
+  không nhân bản. Bỏ `METHOD` và gắn
+  `SCHEDULE-AGENT=CLIENT` trước khi PUT để server đích không gửi lại lời mời
+  họp cho cả công ty. `--dry` chỉ đọc. Vì sao phải có ống riêng và vì sao
+  Gmail chưa có: `research/calendar-contacts.md`.
+- Chạy thật ghi `state/pim.json`; `handover` đọc file đó, thêm bảng "Lịch và
+  danh bạ" vào biên bản và bỏ hai mục ấy khỏi "Không thuộc phạm vi" — thay
+  bằng những gì ống PIM vẫn không chở (lịch chia sẻ, phòng họp, ảnh danh
+  thiếp, ngoại lệ chuỗi họp). Không có file thì biên bản y như cũ.
+- Token Graph được kiểm `roles` ngay sau khi lấy, cùng cách với IMAP: thiếu
+  admin consent thì báo tên quyền còn thiếu thay vì chết ở lần gọi Graph đầu.
+- **Đo thật trên Zimbra 8.8.15 (lab, 17/09)**, Zimbra → Zimbra qua CalDAV:
+  đọc/ghi đúng, RRULE và vCard đi nguyên vẹn, tên file `{UID}.ics` được nhận.
+  Hai chỗ bộ test giả không bắt được: (1) Zimbra trả 2xx cho PUT đè dù có
+  `If-None-Match: *`, nên "đã có" giờ hỏi bằng PROPFIND trước khi PUT thay vì
+  tin mã trả về; (2) **Zimbra bỏ qua `SCHEDULE-AGENT=CLIENT`** và gửi lời mời
+  cho mọi attendee khi hộp thư đích là organizer, gửi reply cho organizer khi
+  là attendee. Mặc định mới: sự kiện có người tham dự thì bỏ
+  `ORGANIZER`/`ATTENDEE` khỏi VEVENT, giữ dưới dạng `X-POSTBOAT-*` và ghi danh
+  sách vào mô tả; `[pim] keep_attendees = true` là opt-in. Biên bản bàn giao
+  nói rõ điều này.
+- **`postboat.py lists`** — nhóm phân phối, hai cặp đầu: M365 và Google
+  Workspace sang IceWarp. Đọc file xuất của nguồn (PowerShell
+  `Get-DistributionGroup`/`-Member`, `gam print group-members`, hoặc
+  `lists.csv`), đổi địa chỉ theo `users.csv`, ghi `lists.csv` trung gian và, với
+  đích IceWarp, bộ lệnh cho `tool file batch` (`u_type 7` group hoặc `u_type 1`
+  mailing list, theo tài liệu API IceWarp) kèm file thành viên mỗi địa chỉ một
+  dòng. Không gọi mạng; admin chạy bộ lệnh trên máy đích. `handover` thêm bảng
+  nhóm và đổi câu ngoài phạm vi thành "quy tắc gửi, kiểm duyệt của nhóm".
+- Chưa có: Gmail/Google Workspace nguồn cho lịch/danh bạ (cần service account +
+  domain-wide delegation), Exchange tự dựng (EWS), Tasks/Notes, bộ lệnh tạo
+  nhóm cho đích khác IceWarp.
+
+---
+
 ## 16/09/2026 — Tách tài liệu nguồn
 
 ### Đổi

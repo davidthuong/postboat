@@ -211,6 +211,19 @@ Ghi từng object:
 
 **Cạm bẫy lịch họp:** server CalDAV có [RFC 6638](https://www.rfc-editor.org/rfc/rfc6638.html) (Zimbra có, IceWarp có SRV `_ischedule`). PUT một VEVENT còn `ORGANIZER`/`ATTENDEE` có thể **gửi lại lời mời cho cả công ty**. Trước khi PUT: bỏ `METHOD`, hoặc đặt `SCHEDULE-AGENT=CLIENT`/`NONE` nếu server nhận. Đây là chỗ dễ biến migrate thành sự cố.
 
+**Đo thật 17/09/2026, Zimbra 8.8.15 FOSS (lab VPS, Zimbra → Zimbra qua CalDAV):**
+
+| Thử | Kết quả |
+|---|---|
+| PUT bởi hộp đích, hộp đích **là ORGANIZER**, có `SCHEDULE-AGENT=CLIENT` | Zimbra **gửi lời mời** cho attendee, y như không có tham số |
+| PUT bởi hộp đích, hộp đích **là ATTENDEE** (PARTSTAT=ACCEPTED) | Zimbra **gửi "Accept:" reply** cho organizer |
+| PUT bởi hộp đích, hộp đích không phải organizer lẫn attendee | Không gửi gì |
+| `zmprov mcf zimbraCalendarCalDavDisableScheduling TRUE` + `zmprov fc -a all` (global config; đặt ở account bị LDAP từ chối) | **Chặn cả hai chiều**, không cần restart mailboxd |
+| PUT đè lên UID đã có với `If-None-Match: *` | Trả 2xx chứ không 412 — "đã có" phải hỏi bằng PROPFIND trước |
+| Tên file `{UID}.ics` với `@` trong UID, RRULE `UNTIL` dạng UTC, vCard 3.0 | Nhận nguyên vẹn; href trả về mã hoá `%40` cho `@` |
+
+Kết luận cho Postboat: `SCHEDULE-AGENT=CLIENT` không đủ làm mặc định. Mặc định phải bỏ `ORGANIZER`/`ATTENDEE` khỏi sự kiện có người tham dự (giữ dưới dạng `X-POSTBOAT-*`, ghi danh sách vào `DESCRIPTION`); chỉ giữ nguyên khi admin đích đã tắt scheduling CalDAV — với Zimbra là lệnh trên, với IceWarp **chưa đo**.
+
 ---
 
 ## 6. Việc “làm được” trông như thế nào, và việc không hứa

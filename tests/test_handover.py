@@ -279,5 +279,47 @@ class TestGhiFile(unittest.TestCase):
         self.assertIn("Khách hàng A", out.read_text(encoding="utf-8"))
 
 
+class TestLichDanhBa(unittest.TestCase):
+    """Khi state/pim.json co du lieu, bien ban phai noi lich/danh ba da chuyen
+    va thoi liet ke chung o "Khong thuoc pham vi" -- to giay phai khop hop dong.
+    Khong co thi giu nguyen nhu cu."""
+
+    PIM = {
+        "an@cu.com": {
+            "src_user": "an@cu.com", "dst_user": "an@moi.vn",
+            "calendar_ok": 12, "calendar_skip": 3, "calendar_err": 0,
+            "contacts_ok": 40, "contacts_skip": 0, "contacts_err": 2,
+            "error": ""},
+        "binh@cu.com": {
+            "src_user": "binh@cu.com", "dst_user": "binh@moi.vn",
+            "error": "HTTP 401 PROPFIND ... -- sai mat khau hop thu"},
+    }
+
+    def test_khong_co_pim_thi_giu_nguyen(self):
+        doc = handover.build_html([row("an@cu.com")])
+        self.assertNotIn("Lịch và danh bạ", doc)
+        self.assertIn("Lịch (Calendar)", doc)
+        self.assertIn("Danh bạ (Contacts)", doc)
+
+    def test_co_pim_thi_co_bang_va_roi_khoi_ngoai_pham_vi(self):
+        doc = handover.build_html([row("an@cu.com")], pim_users=self.PIM)
+        self.assertIn("Lịch và danh bạ", doc)
+        self.assertNotIn("Lịch (Calendar)", doc)
+        self.assertNotIn("Danh bạ (Contacts)", doc)
+        self.assertIn("chữ ký", doc)                # muc con lai van con
+        self.assertIn("Lịch được chia sẻ", doc)     # ong PIM khong cho, noi ro
+        self.assertIn("an@moi.vn", doc)
+        self.assertIn("Thiếu 2 mục", doc)
+        self.assertIn("Không chuyển được", doc)
+        self.assertIn("sai mat khau", doc)
+
+    def test_pham_vi_tu_sinh_noi_ca_lich(self):
+        doc = handover.build_html([row("an@cu.com")], pim_users=self.PIM,
+                                  source_name="Zimbra", dest_name="IceWarp")
+        self.assertIn(
+            "Chuyển thư, lịch và danh bạ của 1 hộp thư từ Zimbra sang IceWarp",
+            doc)
+
+
 if __name__ == "__main__":
     unittest.main()

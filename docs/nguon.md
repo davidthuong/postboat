@@ -30,6 +30,20 @@ Mỗi mailbox cần một **App Password 16 ký tự** — không dùng được
 Google hiển thị password dạng `abcd efgh ijkl mnop`. Dán vào CSV kèm khoảng trắng
 cũng được, tool tự bỏ.
 
+**Nhóm (Google Groups)** không đi qua IMAP. `postboat.py lists` đọc file của
+[GAM](https://github.com/GAM-team/GAM) chạy bằng tài khoản admin Workspace:
+
+```bash
+gam print groups > groups.csv
+gam print group-members > members.csv
+python3 postboat.py lists groups.csv members.csv
+```
+
+Không có GAM thì mở từng group ở groups.google.com → Members → Export members,
+rồi chạy `postboat.py lists members.csv --list ten-nhom@domain` cho mỗi file.
+Thành viên kiểu "cả domain" GAM ghi là `CUSTOMER`, không có địa chỉ — tool báo
+và bỏ qua, thêm tay bên đích.
+
 ## Microsoft 365 / Exchange Online
 
 Phần lớn tenant đã tắt basic auth. Ở đó **không có mật khẩu nào đăng nhập IMAP
@@ -96,6 +110,27 @@ Bật IMAP cho cả tenant một lượt, thay vì từng mailbox:
 ```powershell
 Get-Mailbox -ResultSize Unlimited | Set-CASMailbox -ImapEnabled $true
 ```
+
+**Nhóm phân phối** không đi qua IMAP. Xuất bằng PowerShell rồi đưa cho
+`postboat.py lists` — không cần thêm quyền nào cho app:
+
+```powershell
+Get-DistributionGroup -ResultSize Unlimited | ForEach-Object {
+  $g = $_
+  Get-DistributionGroupMember -Identity $g.Identity -ResultSize Unlimited |
+    Select-Object @{n='List';e={$g.PrimarySmtpAddress}},
+                  @{n='ListName';e={$g.DisplayName}},
+                  @{n='Member';e={$_.PrimarySmtpAddress}},
+                  @{n='MemberType';e={$_.RecipientTypeDetails}}
+} | Export-Csv -NoTypeInformation -Encoding UTF8 lists.csv
+```
+
+Nhóm chưa có thành viên không sinh dòng nào. Muốn giữ cả nhóm rỗng thì xuất
+thêm `Get-DistributionGroup | Select-Object PrimarySmtpAddress,DisplayName |
+Export-Csv groups.csv` và đưa cả hai file. Microsoft 365 Group
+(`Get-UnifiedGroup` + `Get-UnifiedGroupLinks -LinkType Members`) xuất ra cùng
+bốn cột thì đọc được y vậy — nhưng chỉ có thành viên; hộp thư chung của nhóm
+IMAP không vào được.
 
 ## Microsoft 365: cái gì không đi qua IMAP
 

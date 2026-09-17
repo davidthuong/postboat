@@ -15,8 +15,8 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from . import (__version__, handover, mailboxes, providers, report, runner,
-               verify)
+from . import (__version__, handover, lists, mailboxes, pim, providers, report,
+               runner, verify)
 from .config import (FOLDER_KEYS, MASTER_AUTHZID, MASTER_SEPARATOR, Config,
                      load_config)
 from .discover import (NOSELECT, SPECIAL_ARCHIVE, SPECIAL_DRAFTS, SPECIAL_JUNK,
@@ -1182,9 +1182,16 @@ def cmd_handover(args, cfg: Config) -> int:
     if args.customer:
         info = replace(info, customer=args.customer)
 
+    # Ket qua ong PIM, neu da chay: bien ban se co bang lich/danh ba va bo hai
+    # muc do khoi "Khong thuoc pham vi". Khong co file thi giu nguyen nhu cu.
+    pim_users = pim.load_results(cfg.paths.statedir)
+    lists_state = lists.load_state(cfg.paths.statedir)
+
     path = handover.write_handover(
         out, rows,
         verify_users=verify_users,
+        pim_users=pim_users,
+        lists_state=lists_state,
         info=info,
         source_name=cfg.source.provider.name,
         dest_name=cfg.dest.provider.name,
@@ -1195,6 +1202,13 @@ def cmd_handover(args, cfg: Config) -> int:
     say("Da ghi %s" % path)
     say("  %d/%d mailbox hoan tat, gop tu %d lan chay."
         % (ok, len(rows), len(runs)))
+    if pim_users:
+        say("  Kem ket qua lich/danh ba cua %d mailbox (tu %s)."
+            % (len(pim_users), pim.state_path(cfg.paths.statedir)))
+    if lists_state:
+        say("  Kem %d nhom phan phoi (tu %s)."
+            % (len(lists_state.get("lists") or {}),
+               lists.state_path(cfg.paths.statedir)))
     if not verify_users:
         # Khong chan, nhung phai noi: to giay se ghi ro la chua doi chieu, va
         # do la muc khach doc ky nhat.
@@ -1205,6 +1219,139 @@ def cmd_handover(args, cfg: Config) -> int:
         say("  cho dien tay. Xem config.example.ini.")
     say("")
     say("Mo bang trinh duyet roi in ra PDF de ky.")
+    return 0
+
+
+def cmd_pim(args, cfg: Config) -> int:
+    """Doc lich/danh ba nguon roi PUT CalDAV/CardDAV dich. Khong goi imapsync.
+
+    --dry: doc nguon, khong PUT. Tat ca van nam ngoai `sync`. Chay that thi
+    ket qua tung mailbox ghi vao state/pim.json de `handover` dua vao bien ban.
+    """
+    if not cfg.pim.enabled:
+        say("Ong PIM dang tat ([pim] enabled = false). "
+            "Mail van di `postboat.py sync` nhu cu.")
+        say("Bat khi hop dong co chuyen lich/danh ba, roi chay lai.")
+        return 2
+
+    if not pim.source_kind(cfg):
+        say(pim.unsupported_reason(cfg))
+        return 2
+    if not pim.dest_kind(cfg):
+        say(pim.unsupported_dest_reason(cfg))
+        return 2
+
+    users = filter_users(_users(args, cfg), args.only)
+    if args.dry:
+        say("Ong PIM --dry: doc nguon, khong PUT. %d mailbox." % len(users))
+    else:
+        say("Ong PIM: doc nguon roi PUT CalDAV/CardDAV. %d mailbox." % len(users))
+    say("  nguon: %s" % pim.source_label(cfg))
+    say("  dich : %s" % pim.dest_label(cfg))
+    for line in pim.plan_lines(cfg, users):
+        say("  %s" % line)
+    say("")
+
+    results = pim.run_all(cfg, users, dry=args.dry, emit=say)
+    t = pim.totals(results)
+    verb = "se ghi" if args.dry else "ghi"
+    say("")
+    say("Tong %d mailbox, %d khong doc/ghi duoc." % (t["users"], t["errors"]))
+    say("  lich    : %d %s, %d da co, %d loi"
+        % (t["calendar_ok"], verb, t["calendar_skip"], t["calendar_err"]))
+    say("  danh ba : %d %s, %d da co, %d loi"
+        % (t["contacts_ok"], verb, t["contacts_skip"], t["contacts_err"]))
+    if not args.dry:
+        path = pim.save_results(cfg.paths.statedir, results)
+        say("Da luu %s -- `postboat.py handover` se dua vao bien ban." % path)
+    if any(r.failed for r in results):
+        return 1
+    return 0
+
+
+def cmd_lists(args, cfg: Config) -> int:
+    """Nhom phan phoi: doc file xuat cua nguon, doi dia chi theo users.csv,
+    ghi lists.csv va bo lenh tao cho dich (IceWarp: `tool file batch`).
+
+    Khong cham mang. Viec tao that xay ra tren may dich, bang tay admin --
+    nen ket qua ghi vao state/lists.json la "da sinh", handover noi dung vay.
+    """
+    out = Path(args.out)
+    if out.exists() and any(out.iterdir()) and not args.force:
+        say("Loi: thu muc %s da co noi dung. Ghi ra cho khac bang --out, "
+            "hoac them --force de ghi de." % out)
+        return 2
+
+    parsed = lists.Parsed()
+    for name in args.input:
+        try:
+            raw = Path(name).read_bytes()
+        except OSError as exc:
+            say("Loi: khong doc duoc %s: %s" % (name, exc))
+            return 2
+        try:
+            part = lists.parse(lists.decode(raw), members_of=args.list)
+        except lists.ListsError as exc:
+            say("Loi: %s: %s" % (name, exc))
+            return 2
+        lists.merge(parsed, part)
+        say("Doc %s: %s, %d dong -> %d nhom, %d thanh vien"
+            % (name, part.fmt, part.rows_read, len(part.lists), part.members_total))
+    for warn in parsed.warnings:
+        say("  CANH BAO %s" % warn)
+    if not parsed.lists:
+        say("Khong co nhom nao, khong ghi gi.")
+        return 1
+
+    users: List[User] = []
+    try:
+        users = load_users(args.users, need_src_password=False,
+                           need_dst_password=False)
+    except (FileNotFoundError, ValueError) as exc:
+        say("Khong doc duoc %s (%s): giu nguyen dia chi, chi doi domain neu "
+            "co --dst-domain." % (args.users, exc))
+    mapping = lists.mapping_from(users, parsed.lists.values(),
+                                 dst_domain=args.dst_domain)
+    dest_lists = lists.translate_all(parsed, mapping)
+    if mapping.dst_domain:
+        say("Doi domain: moi domain nguon -> %s" % mapping.dst_domain)
+    elif mapping.domains:
+        say("Doi domain theo users.csv: %s" % ", ".join(
+            "%s -> %s" % kv for kv in sorted(mapping.domains.items())))
+    say("")
+    for item in dest_lists:
+        say("  %-40s %4d thanh vien%s" % (
+            item.address, len(item.members),
+            (", %d ngoai domain" % item.external) if item.external else ""))
+    say("")
+
+    out.mkdir(parents=True, exist_ok=True)
+    csv_path = lists.write_csv(out / "lists.csv", dest_lists)
+    say("Da ghi %s (%d nhom, %d thanh vien)" % (
+        csv_path, len(dest_lists), sum(len(l.members) for l in dest_lists)))
+
+    key = cfg.dest.provider.key
+    if key == "icewarp":
+        batch, files = lists.write_icewarp(
+            out, dest_lists, listdir=args.listdir, kind=args.kind,
+            default_owner=args.owner)
+        say("Da ghi %s va %d file thanh vien trong %s" % (
+            batch, len(files), out / "members"))
+        say("")
+        say("Tren may IceWarp:")
+        say("  1. copy nguyen thu muc %s len %s" % (out, args.listdir))
+        say("  2. tool file batch %s/%s" % (args.listdir.rstrip("/\\"), batch.name))
+        say("  3. kiem mot nhom: tool display account %s u_type %s" % (
+            dest_lists[0].address,
+            "g_listfile" if args.kind == "group" else "m_listfile"))
+        say("File thanh vien moi dia chi mot dong (theo tai lieu Mailing List); "
+            "voi Group, bam nut Comment o Members > Text file mot lan de chac cu phap.")
+    else:
+        say("Dich %s: chua co bo lenh tao nhom, dung %s de tao tay."
+            % (cfg.dest.provider.name, csv_path))
+
+    path = lists.save_state(cfg.paths.statedir, dest_lists, key, out)
+    say("Da luu %s -- `postboat.py handover` se dua vao bien ban." % path)
     return 0
 
 
@@ -1411,6 +1558,47 @@ def build_parser() -> argparse.ArgumentParser:
     hv.add_argument("--customer", default="",
                     help="ten khach hang, ghi de [handover] customer")
     hv.set_defaults(func=cmd_handover)
+
+    pm = sub.add_parser(
+        "pim",
+        help="lich va danh ba (ong rieng, mac dinh tat; khong dung imapsync)",
+    )
+    _add_only(pm)
+    pm.add_argument("--dry", action="store_true",
+                    help="doc nguon, in ke hoach, khong PUT CalDAV")
+    pm.set_defaults(func=cmd_pim)
+
+    ls = sub.add_parser(
+        "lists",
+        help="nhom phan phoi: doc file xuat cua nguon, sinh lists.csv va bo "
+             "lenh tao cho dich",
+        description="Doc file nhom phan phoi xuat tu he thong nguon "
+                    "(PowerShell Get-DistributionGroup/-Member cua M365, "
+                    "`gam print group-members` cua Google Workspace, hoac "
+                    "lists.csv), doi dia chi theo users.csv, roi ghi lists.csv "
+                    "va -- neu dich la IceWarp -- bo lenh cho `tool file batch` "
+                    "kem file thanh vien. Khong cham mang; viec tao that chay "
+                    "tren may dich.")
+    ls.add_argument("input", nargs="+", help="mot hay nhieu file xuat tu nguon")
+    ls.add_argument("--out", default="lists",
+                    help="thu muc ghi ket qua (mac dinh: lists/)")
+    ls.add_argument("--list", default="",
+                    help="file dau vao la 'Export members' cua MOT Google Group "
+                         "(khong co cot nhom): dia chi nhom do")
+    ls.add_argument("--dst-domain", default="",
+                    help="doi moi domain nguon sang domain nay; mac dinh suy "
+                         "tu users.csv")
+    ls.add_argument("--kind", choices=("group", "mailinglist"), default="group",
+                    help="loai tai khoan tao tren IceWarp: group (u_type 7, "
+                         "mac dinh) hay mailinglist (u_type 1)")
+    ls.add_argument("--listdir", default="/opt/icewarp/postboat-lists",
+                    help="duong dan TREN MAY ICEWARP se chua thu muc --out")
+    ls.add_argument("--owner", default="",
+                    help="m_owneraddress cho mailing list khi nguon khong co "
+                         "owner; mac dinh postmaster@<domain nhom>")
+    ls.add_argument("--force", action="store_true",
+                    help="ghi de thu muc --out da co noi dung")
+    ls.set_defaults(func=cmd_lists)
 
     return p
 

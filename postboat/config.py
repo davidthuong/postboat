@@ -261,6 +261,25 @@ class HandoverConf:
 
 
 @dataclass
+class PimConf:
+    """Ong lich/danh ba. Mac dinh tat -- config cu khong co [pim] thi khong chay.
+
+    Khong dung chung token IMAP. Khong doi skip_names. Bat bang enabled = true
+    roi chay `postboat.py pim`, khong phai `sync`.
+    """
+    enabled: bool = False
+    webdav_base: str = ""       # trong = suy theo provider dich (icewarp/zimbra)
+    source_webdav_base: str = ""  # trong = suy ra tu provider nguon
+    calendar: str = "Calendar"
+    contacts: str = "Contacts"
+    # False (mac dinh): su kien co nguoi tham du thi bo ORGANIZER/ATTENDEE khoi
+    # VEVENT truoc khi PUT, de server dich khong gui lai loi moi / reply. Do
+    # that tren Zimbra 8.8: SCHEDULE-AGENT=CLIENT bi bo qua. Chi bat True khi
+    # admin da tat scheduling CalDAV tren dich va da thu mot hop.
+    keep_attendees: bool = False
+
+
+@dataclass
 class Config:
     source: ServerConf
     dest: ServerConf
@@ -268,6 +287,7 @@ class Config:
     paths: Paths
     path: Path
     handover: HandoverConf = field(default_factory=HandoverConf)
+    pim: PimConf = field(default_factory=PimConf)
 
 
 def _date_source(value: str) -> str:
@@ -473,6 +493,23 @@ def load_config(path: Path) -> Config:
         paths=paths,
         path=path,
         handover=_handover(cp),
+        pim=_pim(cp),
+    )
+
+
+def _pim(cp: configparser.ConfigParser) -> PimConf:
+    s = "pim"
+    if not cp.has_section(s):
+        return PimConf()
+    calendar = cp.get(s, "calendar", fallback="Calendar").strip() or "Calendar"
+    contacts = cp.get(s, "contacts", fallback="Contacts").strip() or "Contacts"
+    return PimConf(
+        enabled=cp.getboolean(s, "enabled", fallback=False),
+        webdav_base=cp.get(s, "webdav_base", fallback="").strip(),
+        source_webdav_base=cp.get(s, "source_webdav_base", fallback="").strip(),
+        calendar=calendar,
+        contacts=contacts,
+        keep_attendees=cp.getboolean(s, "keep_attendees", fallback=False),
     )
 
 

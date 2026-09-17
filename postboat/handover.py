@@ -77,17 +77,44 @@ def period_from_runs(run_names: Sequence[str]) -> str:
 # ky sau khi da ky. Noi truoc o day thi no la pham vi; de khach tu phat hien
 # sau ba ngay thi no la su co, va luc do khong con giay to nao ben minh ca.
 
-OUT_OF_SCOPE = [
+# Hai muc dau di duoc bang ong PIM (`postboat.py pim`) khi hop dong co; luc do
+# chung roi khoi danh sach nay va co bang rieng o tren. Cac muc con lai thi ong
+# PIM cung khong cho -- xem research/calendar-contacts.md muc 6.
+OUT_OF_SCOPE_PIM = [
     "Lịch (Calendar) và lời mời họp",
     "Danh bạ (Contacts)",
+]
+OUT_OF_SCOPE_ALWAYS = [
     "Công việc (Tasks) và ghi chú (Notes)",
     "Bộ lọc, quy tắc tự động, chữ ký, và cấu hình chuyển tiếp thư",
+]
+# Nhom phan phoi di duoc bang `postboat.py lists` (sinh bo lenh tao tren dich);
+# khi do muc nay doi cach noi: thanh vien da tao lai, cai dat rieng thi khong.
+OUT_OF_SCOPE_LISTS = [
     "Quyền chia sẻ hộp thư và nhóm phân phối",
 ]
+LISTS_OUT_OF_SCOPE = (
+    "Quyền chia sẻ hộp thư; quy tắc gửi, kiểm duyệt và cài đặt riêng của "
+    "từng nhóm phân phối"
+)
+OUT_OF_SCOPE = OUT_OF_SCOPE_PIM + OUT_OF_SCOPE_ALWAYS + OUT_OF_SCOPE_LISTS
 
 OUT_OF_SCOPE_NOTE = (
     "Giao thức IMAP chỉ chở thư. Những hạng mục trên không đi qua được bằng "
     "công cụ này và cần xuất/nhập riêng nếu hai bên có thỏa thuận thêm."
+)
+
+# Khi da chay ong PIM: nhung gi ong do van khong cho, noi ro de khach khong
+# doc "co lich" thanh "co moi thu lien quan den lich".
+PIM_OUT_OF_SCOPE = (
+    "Lịch được chia sẻ và quyền chia sẻ lịch, phòng họp, ảnh danh thiếp, "
+    "ngoại lệ riêng lẻ của chuỗi họp lặp"
+)
+PIM_NOTE = (
+    "Giao thức IMAP chỉ chở thư. Lịch và danh bạ đã đi đường riêng "
+    "(CalDAV/CardDAV) và có bảng kết quả ở mục trên. Những hạng mục còn lại "
+    "không đi qua được bằng công cụ này và cần xuất/nhập riêng nếu hai bên "
+    "có thỏa thuận thêm."
 )
 
 
@@ -307,15 +334,105 @@ def _signature_block(info) -> str:
             col("BÊN NHẬN BÀN GIAO", customer, cust_signer, cust_title)))
 
 
+def _pim_section(pim_users: Dict[str, dict]) -> str:
+    """Bang lich/danh ba theo tung hop thu, chi co khi da chay ong PIM.
+
+    Khac voi verify, vang mat o day khong phai im lang: muc "Khong thuoc pham
+    vi" da noi ro lich/danh ba khong di qua. Muc nay chi xuat hien khi
+    state/pim.json co du lieu, tuc la co mot lan `postboat.py pim` chay that.
+    """
+    users = [pim_users[k] for k in sorted(pim_users)]
+    total_cal = total_con = 0
+    total_neutralized = sum(int(u.get("calendar_neutralized") or 0) for u in users)
+    trs = []
+    for u in users:
+        cal = int(u.get("calendar_ok") or 0) + int(u.get("calendar_skip") or 0)
+        con = int(u.get("contacts_ok") or 0) + int(u.get("contacts_skip") or 0)
+        errs = int(u.get("calendar_err") or 0) + int(u.get("contacts_err") or 0)
+        err = u.get("error") or ""
+        total_cal += cal
+        total_con += con
+        if err:
+            verdict = '<span class="err">Không chuyển được</span>'
+        elif errs:
+            verdict = '<span class="err">Thiếu %s mục</span>' % vn_number(errs)
+        else:
+            verdict = '<span class="ok">Xong</span>'
+        trs.append(
+            "<tr%s><td>%s</td><td>%s</td>"
+            '<td class="num">%s</td><td class="num">%s</td>'
+            '<td class="num">%s</td><td>%s</td></tr>' % (
+                ' class="bad"' if (err or errs) else "",
+                _esc(u.get("src_user")), _esc(u.get("dst_user")),
+                vn_number(cal), vn_number(con), vn_number(errs),
+                verdict + ('<div class="tip">%s</div>' % _esc(err) if err else "")))
+
+    invites = ""
+    if total_neutralized:
+        invites = (
+            " Lời mời họp không được gửi lại khi chuyển: với %s cuộc họp có "
+            "người tham dự, danh sách người tổ chức và người tham dự được ghi "
+            "vào phần mô tả của sự kiện thay vì giữ dưới dạng lời mời."
+            % vn_number(total_neutralized))
+    return (
+        "<h2>Lịch và danh bạ</h2>"
+        '<p class="note">Lịch và danh bạ không đi qua IMAP. Chúng được đọc từ '
+        "hệ thống nguồn bằng CalDAV/CardDAV hoặc Microsoft Graph và ghi vào hệ "
+        "thống đích bằng CalDAV/CardDAV, giữ nguyên mã định danh (UID) của từng "
+        "mục nên chạy lại không tạo bản trùng. Số liệu là số mục đã có mặt ở "
+        "đích sau lần chạy gần nhất: tổng cộng %s sự kiện lịch và %s danh bạ.%s</p>"
+        '<table class="grid"><tr><th>Hộp thư nguồn</th><th>Hộp thư đích</th>'
+        "<th>Sự kiện lịch</th><th>Danh bạ</th><th>Không ghi được</th>"
+        "<th>Kết quả</th></tr>%s</table>"
+        % (vn_number(total_cal), vn_number(total_con), invites, "".join(trs)))
+
+
+def _lists_section(lists_state: dict) -> str:
+    """Bang nhom phan phoi, chi co khi da chay `postboat.py lists`.
+
+    Noi dung that: danh sach duoc xuat tu nguon va tao lai tren dich bang bo
+    lenh sinh san -- viec chay bo lenh do la cua admin dich, nen to giay noi
+    "doi chieu tren he thong dich khi ky" chu khong noi "da tao xong".
+    """
+    items = lists_state.get("lists") or {}
+    total_members = sum(int(v.get("members") or 0) for v in items.values())
+    total_external = sum(int(v.get("external") or 0) for v in items.values())
+    trs = []
+    for addr in sorted(items):
+        v = items[addr]
+        trs.append(
+            '<tr><td>%s</td><td>%s</td><td class="num">%s</td>'
+            '<td class="num">%s</td></tr>' % (
+                _esc(addr), _esc(v.get("name") or ""),
+                vn_number(v.get("members")), vn_number(v.get("external"))))
+    return (
+        "<h2>Nhóm phân phối</h2>"
+        '<p class="note">Danh sách nhóm và thành viên được xuất từ hệ thống '
+        "nguồn và tạo lại trên hệ thống đích bằng bộ lệnh sinh sẵn: %s nhóm "
+        "phân phối, %s thành viên, trong đó %s địa chỉ ngoài domain. Hai bên "
+        "đối chiếu trên hệ thống đích khi ký. Quy tắc gửi, kiểm duyệt và cài "
+        "đặt riêng của từng nhóm không chuyển.</p>"
+        '<table class="grid"><tr><th>Nhóm</th><th>Tên</th>'
+        "<th>Thành viên</th><th>Ngoài domain</th></tr>%s</table>"
+        % (vn_number(len(items)), vn_number(total_members),
+           vn_number(total_external), "".join(trs)))
+
+
 def build_html(rows: Sequence[Row], verify_users: Optional[Dict[str, dict]] = None,
                info=None, source_name: str = "", dest_name: str = "",
-               period: str = "", now: Optional[str] = None) -> str:
+               period: str = "", now: Optional[str] = None,
+               pim_users: Optional[Dict[str, dict]] = None,
+               lists_state: Optional[dict] = None) -> str:
     """Toan bo tai lieu ban giao duoi dang mot chuoi HTML.
 
     Tach khoi `write_handover` de test doc duoc ket qua ma khong can cham dia.
+    `pim_users` la noi dung state/pim.json (pim.load_results); co thi bien ban
+    them bang lich/danh ba va bo hai muc do khoi "Khong thuoc pham vi".
     """
     rows = list(rows)
     verify_users = verify_users or {}
+    pim_users = pim_users or {}
+    lists_state = lists_state if (lists_state and lists_state.get("lists")) else {}
     now = now or time.strftime("%d/%m/%Y %H:%M")
 
     customer = getattr(info, "customer", "") or ""
@@ -326,8 +443,11 @@ def build_html(rows: Sequence[Row], verify_users: Optional[Dict[str, dict]] = No
         # Tu mo ta pham vi tu chinh du lieu, de o trong thi to giay mat nghia.
         route = ("%s sang %s" % (source_name, dest_name)
                  if source_name and dest_name else "")
-        scope = "Chuyển thư của %d hộp thư%s." % (
-            len(rows), (" từ %s" % route) if route else "")
+        what = "thư, lịch và danh bạ" if pim_users else "thư"
+        scope = "Chuyển %s của %d hộp thư%s." % (
+            what, len(rows), (" từ %s" % route) if route else "")
+        if lists_state:
+            scope += " Kèm tạo lại %d nhóm phân phối." % len(lists_state["lists"])
 
     failed = [r for r in rows if r.get("ket_qua") != "OK"]
 
@@ -368,11 +488,21 @@ def build_html(rows: Sequence[Row], verify_users: Optional[Dict[str, dict]] = No
 
     parts.append(_verify_section(verify_users))
 
+    if pim_users:
+        parts.append(_pim_section(pim_users))
+    if lists_state:
+        parts.append(_lists_section(lists_state))
+    out_of_scope = (
+        ([PIM_OUT_OF_SCOPE] if pim_users else OUT_OF_SCOPE_PIM)
+        + OUT_OF_SCOPE_ALWAYS
+        + ([LISTS_OUT_OF_SCOPE] if lists_state else OUT_OF_SCOPE_LISTS))
+    note = PIM_NOTE if pim_users else OUT_OF_SCOPE_NOTE
+
     parts.append(
         "<h2>Không thuộc phạm vi</h2>"
         "<ul>%s</ul><p class=\"note\">%s</p>" % (
-            "".join("<li>%s</li>" % _esc(x) for x in OUT_OF_SCOPE),
-            _esc(OUT_OF_SCOPE_NOTE)))
+            "".join("<li>%s</li>" % _esc(x) for x in out_of_scope),
+            _esc(note)))
 
     parts.append(_signature_block(info))
 
@@ -390,10 +520,13 @@ def build_html(rows: Sequence[Row], verify_users: Optional[Dict[str, dict]] = No
 def write_handover(path, rows: Sequence[Row],
                    verify_users: Optional[Dict[str, dict]] = None,
                    info=None, source_name: str = "", dest_name: str = "",
-                   period: str = "", now: Optional[str] = None) -> Path:
+                   period: str = "", now: Optional[str] = None,
+                   pim_users: Optional[Dict[str, dict]] = None,
+                   lists_state: Optional[dict] = None) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    doc = build_html(rows, verify_users, info, source_name, dest_name, period, now)
+    doc = build_html(rows, verify_users, info, source_name, dest_name, period, now,
+                     pim_users=pim_users, lists_state=lists_state)
     with path.open("w", encoding="utf-8", newline="\n") as fh:
         fh.write(doc)
     return path
