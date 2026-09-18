@@ -937,7 +937,10 @@ reply cho organizer, và `SCHEDULE-AGENT=CLIENT` bị bỏ qua. Nên mặc đị
 zmprov mcf zimbraCalendarCalDavDisableScheduling TRUE && zmprov fc -a all
 ```
 
-Với IceWarp làm đích thì chưa đo — thử trên một hộp có attendee trước khi bật.
+Với IceWarp làm đích, đo thật 18/09/2026: IceWarp **tôn trọng**
+`SCHEDULE-AGENT=CLIENT` cả hai chiều (organizer lẫn attendee, không mail nào),
+nên `keep_attendees = true` an toàn mà không cần tắt gì phía admin. Vẫn nên thử
+trên một hộp trước, vì bản IceWarp khác có thể khác.
 
 `lists` là nhóm phân phối (distribution group, mailing list, Google Group).
 Không có dữ liệu để chuyển, chỉ có tên nhóm và thành viên, nhưng mỗi hệ thống

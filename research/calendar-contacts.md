@@ -223,7 +223,22 @@ Ghi từng object:
 | Tên file `{UID}.ics` với `@` trong UID, RRULE `UNTIL` dạng UTC, vCard 3.0 | Nhận nguyên vẹn; href trả về mã hoá `%40` cho `@` |
 | Cùng phép `If-None-Match: *` nhưng trên **CardDAV** (18/09, `testrig/pimprobe.py`) | Trả **412** — Zimbra chỉ phớt lờ ở đường lịch. "Server này có tôn trọng `If-None-Match` không" là câu hỏi theo từng collection, không phải theo server |
 
-Kết luận cho Postboat: `SCHEDULE-AGENT=CLIENT` không đủ làm mặc định. Mặc định phải bỏ `ORGANIZER`/`ATTENDEE` khỏi sự kiện có người tham dự (giữ dưới dạng `X-POSTBOAT-*`, ghi danh sách vào `DESCRIPTION`); chỉ giữ nguyên khi admin đích đã tắt scheduling CalDAV — với Zimbra là lệnh trên, với IceWarp **chưa đo**.
+**Đo thật 18/09/2026, IceWarp trên Windows (máy test của David), IceWarp → IceWarp qua WebDAV:**
+
+| Thử | Kết quả |
+|---|---|
+| Hình URL | `/webdav/{email}/Calendar/` và `/Contacts/` đúng, phân biệt hoa thường (`/calendar/` 404; `/addressbook/` cũng 207) |
+| PUT đè với `If-None-Match: *` | **412**, bản cũ còn nguyên — tôn trọng RFC 4791, khác Zimbra |
+| PUT bởi hộp đích **là ORGANIZER**, không tham số | Gửi lời mời cho attendee (+1) |
+| PUT bởi hộp đích **là ATTENDEE** đã ACCEPTED, không tham số | Gửi "accepted the invitation" cho organizer (+1) |
+| Cùng hai ca trên, có `SCHEDULE-AGENT=CLIENT` (`keep_attendees = true`) | **+0 cả hai chiều**, tham số được giữ nguyên trên đích |
+| Mặc định Postboat (bỏ ORGANIZER/ATTENDEE, `X-POSTBOAT-*`) | +0; `X-POSTBOAT-*` và ghi chú trong DESCRIPTION giữ nguyên |
+| DELETE object còn attendee (phần dọn dẹp của `pimprobe`) | Gửi "cancelled" / "declined" cho bên kia — **đừng DELETE thô** trên IceWarp |
+| PUT lại bản có `SCHEDULE-AGENT=CLIENT` **hoặc** bản đã bỏ attendee, rồi DELETE | +0 ở cả bước PUT lại lẫn bước DELETE — `pimprobe` dọn dẹp theo cách này |
+| RRULE `UNTIL=20261231T235959Z` | Server ghi lại thành `20270101T020000Z` (chuẩn hoá theo giờ DTSTART); số lần lặp không đổi |
+| vCard `TEL;TYPE=CELL` | Trả về hai dòng TEL giống nhau — chuẩn hoá của IceWarp, không phải nhân bản |
+
+Kết luận cho Postboat: `SCHEDULE-AGENT=CLIENT` không đủ làm mặc định vì Zimbra bỏ qua. Mặc định phải bỏ `ORGANIZER`/`ATTENDEE` khỏi sự kiện có người tham dự (giữ dưới dạng `X-POSTBOAT-*`, ghi danh sách vào `DESCRIPTION`); chỉ giữ nguyên (`keep_attendees = true`) khi đích được chứng minh không gửi — với IceWarp là **có sẵn** (tôn trọng tham số, đo 18/09), với Zimbra là lệnh `zmprov mcf` ở trên.
 
 ---
 

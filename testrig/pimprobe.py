@@ -589,6 +589,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if cleanup and not args.keep:
             say("### Don dep %d object da tao" % len(cleanup))
             for cli, url in cleanup:
+                if url.lower().endswith(".ics"):
+                    # IceWarp gui "cancelled" / "declined" cho ben kia khi DELETE
+                    # mot su kien con ORGANIZER/ATTENDEE (do 18/09/2026). PUT lai
+                    # ban da bo attendee (prepare_ics mac dinh) truoc thi ca PUT do
+                    # lan DELETE sau deu im (+0, cung ngay do).
+                    try:
+                        body = prepare_ics(cli.get(url))
+                        cli.request("PUT", url, body.encode("utf-8"),
+                                    {"Content-Type": "text/calendar; charset=utf-8"})
+                    except DavError as exc:
+                        say("  (khong vo hieu hoa duoc %s: %s)"
+                            % (urllib.parse.unquote(url), exc))
                 status, _ = req(cli, "DELETE", url)
                 say("  DELETE %-70s -> %s" % (urllib.parse.unquote(url), status))
         elif cleanup:

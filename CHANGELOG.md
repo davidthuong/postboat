@@ -9,6 +9,23 @@ Phần lớn các mục "Sửa" ở đây đến từ những cuộc migrate ch�
 
 ---
 
+## 18/09/2026 — Đo trên IceWarp thật
+
+### Đổi
+
+- **IceWarp (Windows) làm đích, đo thật** IceWarp → IceWarp qua WebDAV: hình
+  URL `/webdav/{email}/Calendar/` và `/Contacts/` đúng; `If-None-Match: *` trả
+  412 (khác Zimbra); `X-POSTBOAT-*` và mô tả giữ nguyên; chạy lại "0 ghi, 2 đã
+  có". **IceWarp tôn trọng `SCHEDULE-AGENT=CLIENT` cả hai chiều** (organizer
+  lẫn attendee, không mail nào), nên với đích IceWarp `keep_attendees = true`
+  an toàn mà không cần tắt gì phía admin. PUT thô không tham số thì vẫn gửi lời
+  mời/reply, và DELETE object còn attendee gửi "cancelled"/"declined" —
+  Postboat không bao giờ DELETE, nhưng phần dọn dẹp của `testrig/pimprobe.py`
+  thì có, nên nó vô hiệu hoá sự kiện trước khi xoá. Bảng đo đầy đủ ở
+  `research/calendar-contacts.md`.
+
+---
+
 ## 17/09/2026 — Ống lịch và danh bạ
 
 ### Thêm
