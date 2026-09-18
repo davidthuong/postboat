@@ -33,6 +33,14 @@ Phần lớn các mục "Sửa" ở đây đến từ những cuộc migrate ch�
   đó với file thành viên "mỗi địa chỉ một dòng" **giao thư đúng cho cả 3 thành
   viên** khi gửi một thư vào nhóm — cú pháp file thành viên không còn là suy
   đoán.
+- **Đầu nguồn M365 đo trên tenant thật** (`techsysad.onmicrosoft.com`): thêm
+  `docs/m365-lists-export.ps1` gom ba lệnh xuất, đăng nhập qua trình duyệt
+  (`-DisableWAM` khi chạy từ tiến trình không có cửa sổ). Dữ liệu thật sửa ba
+  chỗ: file xuất **rỗng** (tenant không có distribution group) giờ là 0 nhóm
+  kèm cảnh báo thay vì dừng lệnh; thành viên không có mailbox (`MemberType`
+  `User`, địa chỉ trống) bị bỏ có báo; `icewarp.cmd` thêm `chcp 65001` vì tên
+  nhóm thật có dấu tiếng Việt. Kết quả: 2 Microsoft 365 Group, 5 thành viên,
+  ra đúng bộ lệnh cho IceWarp.
 
 ---
 

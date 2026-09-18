@@ -120,8 +120,29 @@ class TestParse(unittest.TestCase):
     def test_garbage_is_an_error_not_a_crash(self):
         with self.assertRaises(lists.ListsError):
             lists.parse("khong,co,gi\nca,het,day\n")
-        with self.assertRaises(lists.ListsError):
-            lists.parse("\n\n")
+
+    def test_empty_export_is_zero_lists_with_a_warning(self):
+        """Tenant M365 test 18/09: 0 distribution group -> Export-Csv ghi file
+        chi co BOM. Do la 0 nhom, khong phai loi dung ca lenh."""
+        for text in ("", "\n\n", "﻿"):
+            p = lists.parse(text)
+            self.assertEqual(p.lists, {})
+            self.assertEqual(p.fmt, "file rong")
+            self.assertEqual(len(p.warnings), 1)
+
+    def test_real_m365_unified_export_member_without_mailbox(self):
+        """Get-UnifiedGroupLinks tra ca user khong co mailbox: Member rong,
+        MemberType 'User'. Bao va bo, khong chet."""
+        text = ('﻿"List","ListName","Member","MemberType"\n'
+                '"cty@t.onmicrosoft.com","CÔNG TY TNHH ĐẠI TÍN","","User"\n'
+                '"cty@t.onmicrosoft.com","CÔNG TY TNHH ĐẠI TÍN","a@t.onmicrosoft.com","UserMailbox"\n'
+                '"allcompany@t.onmicrosoft.com","All Company","","User"\n')
+        p = lists.parse(text)
+        self.assertEqual(p.lists["cty@t.onmicrosoft.com"].members, ["a@t.onmicrosoft.com"])
+        self.assertEqual(p.lists["cty@t.onmicrosoft.com"].name, "CÔNG TY TNHH ĐẠI TÍN")
+        self.assertEqual(p.lists["allcompany@t.onmicrosoft.com"].members, [])
+        self.assertEqual(len(p.warnings), 2)
+        self.assertIn("User", p.warnings[0])
 
 
 class TestMapping(unittest.TestCase):
@@ -227,6 +248,7 @@ class TestWriters(unittest.TestCase):
         self.assertTrue(raw.endswith(b"\r\n"))
         lines = raw.decode("utf-8").split("\r\n")
         self.assertEqual(lines[0], "@echo off")
+        self.assertIn("chcp 65001 >nul", lines)     # ten nhom co dau tieng Viet
         self.assertIn('cd /d "C:\\Program Files\\IceWarp"', lines)
         self.assertIn(
             'tool.exe create account sales@moi.vn u_type 7 u_name "Phong Kinh Doanh" '

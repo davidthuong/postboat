@@ -158,9 +158,15 @@ def _cell(row: Sequence[str], index: Optional[int]) -> str:
 def parse(text: str, members_of: str = "") -> Parsed:
     """Mot file -> cac nhom. `members_of`: file chi la thanh vien cua nhom do."""
     out = Parsed()
-    rows = _rows(text)
+    # decode() da bo BOM cua file; text den tu cho khac thi bo o day.
+    rows = _rows((text or "").lstrip("﻿"))
     if not rows:
-        raise ListsError("file rong. " + HOWTO)
+        # Tenant khong co distribution group nao thi Export-Csv cho ra file chi
+        # co BOM (gap that 18/09, tenant test M365): khong phai loi, la 0 nhom.
+        out.fmt = "file rong"
+        out.warnings.append("file khong co dong nao -- nguon khong co nhom "
+                            "loai nay, hoac xuat sai lenh")
+        return out
     header = rows[0]
     folded = [fold(c) for c in header]
     idx = _columns(header)
@@ -403,6 +409,10 @@ def icewarp_script_lines(lists: Sequence[MailList], listdir: str,
         out += ["@echo off",
                 "rem Sinh boi postboat.py lists luc %s. Chay trong cmd (Administrator)." % stamp,
                 "rem Sai thu muc cai IceWarp thi sua dong cd duoi day, hoac sinh lai voi --tooldir.",
+                # File nay la UTF-8; ten nhom that co dau tieng Viet (tenant test
+                # 18/09). Khong doi codepage thi cmd doc sai ten truoc khi dua
+                # cho tool.exe.
+                "chcp 65001 >nul",
                 'cd /d "%s"' % tooldir]
         for item, create in zip(lists, creates):
             out.append(_cmd_line("%s %s" % (tool, create)))

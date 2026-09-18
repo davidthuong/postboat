@@ -132,6 +132,17 @@ Export-Csv groups.csv` và đưa cả hai file. Microsoft 365 Group
 bốn cột thì đọc được y vậy — nhưng chỉ có thành viên; hộp thư chung của nhóm
 IMAP không vào được.
 
+Cả ba việc trên gom trong [docs/m365-lists-export.ps1](m365-lists-export.ps1):
+chạy bằng admin tenant, đăng nhập qua trình duyệt, ra ba file `.csv` đưa thẳng
+cho `postboat.py lists`. Chạy thật trên một tenant test 18/09/2026 thấy ba
+điều đáng biết trước: tenant có thể **không có distribution group nào** (chỉ có
+Microsoft 365 Group) — file tương ứng chỉ còn BOM và tool hiểu là 0 nhóm;
+`Get-UnifiedGroupLinks` trả cả **user không có mailbox** (cột `Member` rỗng,
+`MemberType` = `User`) — tool bỏ và báo từng dòng; và tên nhóm có dấu tiếng
+Việt — script IceWarp sinh ra có `chcp 65001` để `tool.exe` nhận đúng tên.
+Chạy từ tiến trình không có cửa sổ thì `Connect-ExchangeOnline` phải có
+`-DisableWAM`, không thì chết với "A window handle must be configured".
+
 ## Microsoft 365: cái gì không đi qua IMAP
 
 Tool này chuyển **mail**. Với một tenant Microsoft 365 thì "mail" ít hơn thứ
