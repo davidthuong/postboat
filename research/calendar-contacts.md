@@ -221,6 +221,7 @@ Ghi từng object:
 | `zmprov mcf zimbraCalendarCalDavDisableScheduling TRUE` + `zmprov fc -a all` (global config; đặt ở account bị LDAP từ chối) | **Chặn cả hai chiều**, không cần restart mailboxd |
 | PUT đè lên UID đã có với `If-None-Match: *` | Trả 2xx chứ không 412 — "đã có" phải hỏi bằng PROPFIND trước |
 | Tên file `{UID}.ics` với `@` trong UID, RRULE `UNTIL` dạng UTC, vCard 3.0 | Nhận nguyên vẹn; href trả về mã hoá `%40` cho `@` |
+| Cùng phép `If-None-Match: *` nhưng trên **CardDAV** (18/09, `testrig/pimprobe.py`) | Trả **412** — Zimbra chỉ phớt lờ ở đường lịch. "Server này có tôn trọng `If-None-Match` không" là câu hỏi theo từng collection, không phải theo server |
 
 Kết luận cho Postboat: `SCHEDULE-AGENT=CLIENT` không đủ làm mặc định. Mặc định phải bỏ `ORGANIZER`/`ATTENDEE` khỏi sự kiện có người tham dự (giữ dưới dạng `X-POSTBOAT-*`, ghi danh sách vào `DESCRIPTION`); chỉ giữ nguyên khi admin đích đã tắt scheduling CalDAV — với Zimbra là lệnh trên, với IceWarp **chưa đo**.
 

@@ -412,3 +412,89 @@ Dựng nặng hơn Dovecot nhiều, nên để sau: xong Dovecot là biết đư
 sai. Zimbra chỉ khác ở chỗ `master_user` là `admin@domain` (địa chỉ đầy đủ) và
 không phải sửa cấu hình server. Có sẵn một Zimbra đang chạy thì chạy #1, #2, #5
 trên đó là đủ.
+
+## `pimprobe.py` — đo một server đích trước khi giao lịch cho nó
+
+Rig Dovecot ở trên không trả lời được gì về lịch và danh bạ: Dovecot không có
+CalDAV. Ống PIM phải đo trên server thật, và **mỗi server trả lời khác nhau** —
+nên đây là script chạy được với bất kỳ đích nào, không phải một bộ lệnh
+`zmmailbox` chỉ Zimbra mới hiểu.
+
+Bốn câu hỏi, đúng bốn câu đã phải hỏi Zimbra hồi 17/09:
+
+| Phép | Hỏi gì | Vì sao hỏi |
+|---|---|---|
+| `urls` | `{base}/{email}/Calendar/` và `/Contacts/` có thật không | sai hình URL thì `webdav_base` phải khai tay |
+| `inm` | `If-None-Match: *` có trả 412 khi UID đã có | phớt lờ thì chạy lại sẽ nhân bản, phải PROPFIND trước |
+| `invites` | PUT sự kiện còn ORGANIZER/ATTENDEE có làm server **gửi lại lời mời** | đây là chỗ biến một ca migrate thành sự cố |
+| `lists` | `tool.exe file batch` với `u_type 7` + `g_listfile` có tạo đúng nhóm | chỉ IceWarp, và phải chạy **trên** máy Windows đó |
+
+```bash
+python3 testrig/pimprobe.py --provider icewarp --host mail.lab.vn \
+    --box pim-dst@lab.vn:MatKhau --peer pim-third@lab.vn:MatKhau \
+    --insecure --only urls,inm,invites
+
+python3 testrig/pimprobe.py --provider icewarp --host mail.lab.vn \
+    --box pim-dst@lab.vn:MatKhau --only lists
+```
+
+IceWarp là **Windows** (toàn bộ máy IceWarp trong phạm vi tool này), nơi thường
+không có SSH — nên phép `lists` mặc định chỉ *sinh* file rồi in đúng những dòng
+cần gõ trong `cmd` trên máy đó, với `--remote-dir C:\pimprobe-lists`. Máy nào có
+bật OpenSSH thì thêm `--ssh Administrator@mail.lab.vn` để script tự đẩy file và
+chạy; một bản IceWarp Linux thì `--remote-dir /tmp/pimprobe-lists`. Đường dẫn ấy
+quyết định cả ba thứ: dấu tách thư mục, kết thúc dòng trong file thành viên
+(Windows → CRLF), và `tool.exe` hay `tool.sh` — cả hai nằm ngay trong
+`<InstallDirectory>`.
+
+`--box` là hộp bị PUT vào. `--peer` là hộp **thứ ba**: nó đóng vai người tham
+dự ở một chiều và người tổ chức ở chiều kia, và INBOX của nó (đọc bằng IMAP,
+không bằng công cụ riêng của server) là cái đếm được. Script tự xoá mọi object
+nó tạo, trừ khi `--keep`.
+
+Đếm mail bằng IMAP chứ không bằng `zmmailbox` là điểm khác duy nhất so với bộ
+lệnh đã chạy trên Zimbra — và là lý do bộ này mang sang IceWarp được.
+
+### Đã chạy trên Zimbra 8.8.15 (18/09/2026) để tự kiểm chính nó
+
+Chạy trên đích đã biết trước đáp án, kết quả phải trùng bảng ở
+[research/calendar-contacts.md](../research/calendar-contacts.md). Trùng:
+
+| Phép | Kết quả |
+|---|---|
+| `urls` | `/dav/{email}/Calendar/` là `calendar-collection`, `/Contacts/` là `addressbook`; gốc `{email}/` trả `USER_ROOT` |
+| `inm` | ICS: PUT lần hai với `If-None-Match: *` vẫn **201** và ghi đè bản cũ. **vCard thì 412** — Zimbra chỉ phớt lờ ở đường lịch |
+| `invites` A | dịch là ORGANIZER + `SCHEDULE-AGENT=CLIENT` → inbox hộp thứ ba **+1** (tham số bị bỏ qua) |
+| `invites` B | dịch là ORGANIZER, không tham số → **+1** |
+| `invites` C | dịch là ATTENDEE đã ACCEPTED → **+1**, tiêu đề `Accept: ...` |
+| `invites` D | qua `prepare_ics()` mặc định → **+0**, không mail nào |
+
+Dòng vCard 412 là cái mới so với lần đo 17/09: hôm đó chỉ thử ICS. Không đổi
+hành vi của tool (`pim.py` vẫn PROPFIND trước khi PUT ở cả hai đường), nhưng nó
+nói rằng "server này phớt lờ `If-None-Match`" là câu phải hỏi **theo từng
+collection**, không phải theo server.
+
+### Còn thiếu gì để chạy được trên IceWarp
+
+Lab hiện chỉ có Dovecot và Zimbra. Để chạy đúng bốn phép trên một IceWarp cần:
+
+- host/IP và cổng web (để suy `https://host/webdav`), cert tự ký cũng được —
+  script có `--insecure`;
+- một domain test với `pim-src@`, `pim-dst@` và một hộp **thứ ba** làm người
+  tham dự, cả ba biết mật khẩu;
+- WebDAV và GroupWare đã bật (System → Services), và IMAP mở cho hộp thứ ba;
+- cách vào được máy IceWarp cho phép đo `lists` — RDP rồi gõ trong `cmd` cũng
+  đủ, không nhất thiết SSH. `tool.exe file batch` chạy **trên** máy đó và
+  `g_listfile` trỏ tới đường dẫn nằm trên chính máy đó, nên file phải nằm sẵn ở
+  đấy dù đưa lên bằng đường nào.
+
+Ba thứ tài liệu IceWarp đã xác nhận, nên không cần đo lại: `tool file batch`
+nhận một file mỗi dòng một lệnh và **không** có chữ `tool` ở đầu dòng; `u_type`
+7 là Group, 1 là Mailing list; `G_ListFile` là "List file", `G_ListFile_Contents`
+là "Members file content". Thứ **chưa** có tài liệu là định dạng bên trong file
+thành viên — mỗi địa chỉ một dòng là suy luận, và bước `tool display account
+<nhóm> g_listfile_contents` trong phép `lists` sinh ra để trả lời đúng chỗ đó.
+
+Bản hằng số ấy có sẵn trên chính máy IceWarp: `<InstallDirectory>\API\Delphi\APIconst.pas`.
+Mở file đó tìm `G_ListFile` là đối chiếu được tại chỗ, không phải tin bản trên
+GitHub.
