@@ -1337,15 +1337,23 @@ def cmd_lists(args, cfg: Config) -> int:
             default_owner=args.owner)
         say("Da ghi %s va %d file thanh vien trong %s" % (
             batch, len(files), out / "members"))
+        tool = lists.tool_name(args.listdir)
+        field = "g_listfile" if args.kind == "group" else "m_listfile"
         say("")
-        say("Tren may IceWarp:")
+        say("Tren may IceWarp (%s):" % (
+            "Windows" if lists.windows_path(args.listdir) else "Linux"))
         say("  1. copy nguyen thu muc %s len %s" % (out, args.listdir))
-        say("  2. tool file batch %s/%s" % (args.listdir.rstrip("/\\"), batch.name))
-        say("  3. kiem mot nhom: tool display account %s u_type %s" % (
-            dest_lists[0].address,
-            "g_listfile" if args.kind == "group" else "m_listfile"))
+        say("  2. %s file batch %s" % (
+            tool, lists.remote_join(args.listdir, batch.name)))
+        say("  3. kiem mot nhom: %s display account %s u_type %s" % (
+            tool, dest_lists[0].address, field))
+        say("  4. doc lai danh sach: %s display account %s %s_contents" % (
+            tool, dest_lists[0].address, field))
+        say("%s nam ngay trong <InstallDirectory>. Duong dan trong file lenh "
+            "theo kieu cua --listdir, nen dich Windows phai dua duong dan "
+            "Windows (vd C:\\IceWarp\\postboat-lists)." % tool)
         say("File thanh vien moi dia chi mot dong (theo tai lieu Mailing List); "
-            "voi Group, bam nut Comment o Members > Text file mot lan de chac cu phap.")
+            "voi Group thi buoc 4 la cach xac nhan server doc dung.")
     else:
         say("Dich %s: chua co bo lenh tao nhom, dung %s de tao tay."
             % (cfg.dest.provider.name, csv_path))
@@ -1591,8 +1599,11 @@ def build_parser() -> argparse.ArgumentParser:
     ls.add_argument("--kind", choices=("group", "mailinglist"), default="group",
                     help="loai tai khoan tao tren IceWarp: group (u_type 7, "
                          "mac dinh) hay mailinglist (u_type 1)")
-    ls.add_argument("--listdir", default="/opt/icewarp/postboat-lists",
-                    help="duong dan TREN MAY ICEWARP se chua thu muc --out")
+    ls.add_argument("--listdir", default="C:\\IceWarp\\postboat-lists",
+                    help="duong dan TREN MAY ICEWARP se chua thu muc --out "
+                         "(mac dinh kieu Windows vi IceWarp hau het chay tren "
+                         "Windows); ban Linux thi dua /opt/icewarp/... -- dau "
+                         "tach, ket thuc dong va ten tool deu suy tu day")
     ls.add_argument("--owner", default="",
                     help="m_owneraddress cho mailing list khi nguon khong co "
                          "owner; mac dinh postmaster@<domain nhom>")

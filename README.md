@@ -948,6 +948,12 @@ chỉ theo `users.csv` (hộp thư có trong đó lấy `dst_user`, còn lại �
 địa chỉ ngoài domain giữ nguyên), rồi ghi `lists/lists.csv`. Đích là IceWarp thì
 ghi thêm `lists/icewarp.batch` và `lists/members/*.txt`: copy cả thư mục lên máy
 IceWarp và chạy `tool file batch` — tool **không** tự tạo tài khoản trên đích.
+`--listdir` là đường dẫn **trên máy IceWarp**, và nó quyết định luôn phần còn
+lại. Mặc định `C:\IceWarp\postboat-lists` vì IceWarp hầu hết chạy trên Windows:
+file lệnh dùng dấu `\`, file thành viên kết thúc dòng CRLF, lệnh in ra là
+`tool.exe`, và cách chạy là RDP vào máy rồi gõ trong `cmd`. Bản Linux thì đưa
+`--listdir /opt/icewarp/postboat-lists` — cùng bộ file đó chuyển sang `/`, LF và
+`tool.sh`. Cả hai bản `tool` nằm ngay trong `<InstallDirectory>`.
 Đích khác thì dùng `lists.csv` để tạo tay. Quy tắc gửi và kiểm duyệt của nhóm
 không chuyển.
 

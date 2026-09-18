@@ -192,7 +192,37 @@ class TestWriters(unittest.TestCase):
         self.assertEqual(members, "an@moi.vn\nbinh.le@moi.vn\ndoitac@gmail.com\n")
         self.assertEqual((self.tmp / "members" / "trong@moi.vn.txt").read_text(), "")
         self.assertEqual(len(files), 3)
-        self.assertIn("tool file batch", (self.tmp / "README.txt").read_text(encoding="utf-8"))
+        self.assertIn("tool.sh file batch",
+                      (self.tmp / "README.txt").read_text(encoding="utf-8"))
+
+    def test_icewarp_windows_dest_gets_windows_paths_crlf_and_tool_exe(self):
+        """IceWarp ban Windows la ban hay gap. Duong dan quyet dinh ca ba thu,
+        va mot file thanh vien LF gui sang do la rui ro khong can thiet."""
+        batch, files = lists.write_icewarp(
+            self.tmp, self.dest, listdir="C:\\IceWarp\\postboat-lists",
+            kind="group")
+        raw = batch.read_bytes()
+        self.assertIn(
+            'g_listfile "C:\\IceWarp\\postboat-lists\\members\\sales@moi.vn.txt"',
+            raw.decode("utf-8"))
+        self.assertNotIn(b"/members/", raw)
+        self.assertTrue(raw.endswith(b"\r\n"))
+        members = (self.tmp / "members" / "sales@moi.vn.txt").read_bytes()
+        self.assertEqual(members,
+                         b"an@moi.vn\r\nbinh.le@moi.vn\r\ndoitac@gmail.com\r\n")
+        readme = (self.tmp / "README.txt").read_text(encoding="utf-8")
+        self.assertIn("tool.exe file batch C:\\IceWarp\\postboat-lists\\icewarp.batch",
+                      readme)
+        self.assertIn("g_listfile_contents", readme)
+
+    def test_windows_path_detection(self):
+        for path in ("C:\\IceWarp", "c:/IceWarp", "\\\\srv\\share\\lists",
+                     "IceWarp\\lists"):
+            self.assertTrue(lists.windows_path(path), path)
+        for path in ("/opt/icewarp", "/tmp/x", "icewarp/lists", ""):
+            self.assertFalse(lists.windows_path(path), path)
+        self.assertEqual(lists.tool_name("C:\\IceWarp"), "tool.exe")
+        self.assertEqual(lists.tool_name("/opt/icewarp"), "tool.sh")
 
     def test_icewarp_mailinglist_needs_owner(self):
         lines = lists.icewarp_lines(self.dest, "C:\\IceWarp\\lists", kind="mailinglist",
@@ -200,7 +230,7 @@ class TestWriters(unittest.TestCase):
         self.assertIn(
             'create account sales@moi.vn u_type 1 u_name "Phong Kinh Doanh" '
             'm_owneraddress "admin@moi.vn" m_sendalllists 0 '
-            'm_listfile "C:\\IceWarp\\lists/members/sales@moi.vn.txt"',
+            'm_listfile "C:\\IceWarp\\lists\\members\\sales@moi.vn.txt"',
             lines)
         # Khong co --owner thi postmaster cua domain nhom, khong de trong.
         lines = lists.icewarp_lines(self.dest, "/x", kind="mailinglist")
@@ -258,10 +288,29 @@ class TestCli(unittest.TestCase):
         self.assertTrue((out / "icewarp.batch").exists())
         self.assertTrue((out / "members" / "sales@moi.vn.txt").exists())
         self.assertIn("cu.com -> moi.vn", text)
-        self.assertIn("tool file batch", text)
+        # Mac dinh la Windows: IceWarp hau het chay tren do.
+        self.assertIn("Tren may IceWarp (Windows):", text)
+        self.assertIn("tool.exe file batch C:\\IceWarp\\postboat-lists\\icewarp.batch",
+                      text)
         self.assertIn("1 ngoai domain", text)
         state = lists.load_state(self.tmp / "state")
         self.assertEqual(sorted(state["lists"]), ["all@moi.vn", "sales@moi.vn"])
+
+    def test_icewarp_on_linux_still_works_when_asked(self):
+        """Mac dinh la Windows, nhung mot ban IceWarp Linux chi can doi
+        --listdir: ca bo file phai chuyen sang '/', LF va tool.sh."""
+        self.config("icewarp")
+        out = self.tmp / "lists"
+        code, text = self.run_cli("lists", str(self.tmp / "export.csv"),
+                                  "--out", str(out),
+                                  "--listdir", "/opt/icewarp/postboat-lists")
+        self.assertEqual(code, 0, text)
+        self.assertIn("Tren may IceWarp (Linux):", text)
+        self.assertIn("tool.sh file batch /opt/icewarp/postboat-lists/icewarp.batch",
+                      text)
+        batch = (out / "icewarp.batch").read_bytes()
+        self.assertIn(b"/opt/icewarp/postboat-lists/members/sales@moi.vn.txt", batch)
+        self.assertNotIn(b"\r\n", batch)
 
     def test_other_dest_gets_csv_and_a_plain_sentence(self):
         self.config("zimbra")

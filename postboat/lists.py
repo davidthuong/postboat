@@ -338,6 +338,31 @@ def member_filename(address: str) -> str:
     return address.lower() + ".txt"
 
 
+def windows_path(path: str) -> bool:
+    """IceWarp chay ca tren Windows lan Linux, va ban Windows la ban hay gap.
+    Duong dan quyet dinh ba thu: dau tach thu muc, ket thuc dong trong file
+    thanh vien, va ten file thuc thi (`tool.exe` hay `tool.sh`, ca hai nam
+    ngay trong <InstallDirectory>)."""
+    p = (path or "").strip()
+    if p.startswith("\\\\"):          # UNC \\server\share
+        return True
+    if len(p) >= 3 and p[0].isalpha() and p[1] == ":" and p[2] in "\\/":
+        return True
+    return "\\" in p
+
+
+def tool_name(listdir: str) -> str:
+    return "tool.exe" if windows_path(listdir) else "tool.sh"
+
+
+def remote_join(listdir: str, *parts: str) -> str:
+    """Noi duong dan theo kieu cua chinh `listdir`, khong theo kieu cua may
+    dang chay tool nay: file sinh tren Windows co the la cho mot IceWarp
+    Linux va nguoc lai."""
+    sep = "\\" if windows_path(listdir) else "/"
+    return sep.join([listdir.rstrip("/\\")] + [p.strip("/\\") for p in parts])
+
+
 def icewarp_lines(lists: Sequence[MailList], listdir: str, kind: str = "group",
                   default_owner: str = "") -> List[str]:
     """Moi nhom mot dong `create account ...` cho `tool file batch`.
@@ -348,10 +373,9 @@ def icewarp_lines(lists: Sequence[MailList], listdir: str, kind: str = "group",
     if kind not in ICEWARP_KINDS:
         raise ListsError("kind phai la group hoac mailinglist")
     utype = ICEWARP_KINDS[kind]
-    base = listdir.rstrip("/\\")
     lines: List[str] = []
     for item in lists:
-        path = "%s/members/%s" % (base, member_filename(item.address))
+        path = remote_join(listdir, "members", member_filename(item.address))
         name = item.name or item.address.split("@", 1)[0]
         if kind == "group":
             lines.append("create account %s u_type %d u_name %s g_listfile %s"
@@ -371,29 +395,37 @@ def write_icewarp(outdir: Path, lists: Sequence[MailList], listdir: str,
     outdir = Path(outdir)
     members_dir = outdir / "members"
     members_dir.mkdir(parents=True, exist_ok=True)
+    # File nay do IceWarp doc, khong phai git hay shell: ket thuc dong theo
+    # may dich. Ban Windows tu ghi file thanh vien bang CRLF (nut Text file
+    # trong admin console), nen gui LF sang do la tu chuoc rui ro.
+    eol = "\r\n" if windows_path(listdir) else "\n"
     files: List[Path] = []
     for item in lists:
         path = members_dir / member_filename(item.address)
-        with path.open("w", encoding="utf-8", newline="\n") as fh:
+        with path.open("w", encoding="utf-8", newline="") as fh:
             for member in item.members:
-                fh.write(member + "\n")
+                fh.write(member + eol)
         files.append(path)
     batch = outdir / "icewarp.batch"
     lines = icewarp_lines(lists, listdir, kind, default_owner)
-    with batch.open("w", encoding="utf-8", newline="\n") as fh:
-        fh.write("\n".join(lines) + "\n")
+    with batch.open("w", encoding="utf-8", newline="") as fh:
+        fh.write(eol.join(lines) + eol)
+    tool = tool_name(listdir)
+    field = "g_listfile" if kind == "group" else "m_listfile"
     readme = outdir / "README.txt"
-    with readme.open("w", encoding="utf-8", newline="\n") as fh:
-        fh.write(
-            "Sinh boi postboat.py lists luc %s.\n"
-            "Copy nguyen thu muc nay len may IceWarp tai: %s\n"
-            "Roi chay:  tool file batch %s/icewarp.batch\n"
-            "Kiem:      tool display account <nhom> u_type %s\n"
-            "%d nhom, %d thanh vien. Loai tai khoan: %s (u_type %d).\n"
-            % (time.strftime("%Y-%m-%d %H:%M"), listdir, listdir.rstrip("/\\"),
-               "g_listfile" if kind == "group" else "m_listfile",
-               len(lists), sum(len(l.members) for l in lists),
-               kind, ICEWARP_KINDS[kind]))
+    with readme.open("w", encoding="utf-8", newline="") as fh:
+        fh.write(eol.join([
+            "Sinh boi postboat.py lists luc %s." % time.strftime("%Y-%m-%d %H:%M"),
+            "Copy nguyen thu muc nay len may IceWarp tai: %s" % listdir,
+            "Roi chay:  %s file batch %s" % (
+                tool, remote_join(listdir, "icewarp.batch")),
+            "Kiem:      %s display account <nhom> u_type %s" % (tool, field),
+            "Doc lai danh sach: %s display account <nhom> %s_contents" % (tool, field),
+            "%d nhom, %d thanh vien. Loai tai khoan: %s (u_type %d)." % (
+                len(lists), sum(len(l.members) for l in lists),
+                kind, ICEWARP_KINDS[kind]),
+            "%s nam ngay trong <InstallDirectory> cua IceWarp." % tool,
+            ""]))
     return batch, files
 
 
