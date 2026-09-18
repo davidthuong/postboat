@@ -239,6 +239,8 @@ Ghi từng object:
 | `tool.exe file batch <file>` (đường dẫn tuyệt đối, file không BOM, hoặc file trần trong thư mục cài) | **Im lặng, không tạo gì** — cả ba cách |
 | `tool.exe create account nhom@dom u_type 7 u_name "..." g_listfile "C:\...\nhom@dom.txt"` gõ thẳng | "Account ... created."; `display` trả về đúng `u_type 7`, `u_name`, `g_listfile` |
 | Gửi một thư tới nhóm đó, file thành viên 3 dòng (mỗi địa chỉ một dòng, CRLF) | SMTP nhận, **cả 3 thành viên nhận thư** — đường `lists` M365/Google → IceWarp đo xong đầu đích |
+| `u_name "CÔNG TY TNHH THƯƠNG MẠI…"` qua tham số dòng lệnh (kể cả sau `chcp 65001`) | Lưu thành "THUONG M?I D?CH V?": `tool.exe` không-Unicode, tham số đi qua bảng mã ANSI |
+| `tool.exe import account names.csv u_name`, CSV UTF-8 không BOM `email,tên` | Tên giữ **đủ dấu** (kiểm bằng `export account … u_name > file` + Notepad); `u_type`, `g_listfile` không đổi |
 | vCard `TEL;TYPE=CELL` | Trả về hai dòng TEL giống nhau — chuẩn hoá của IceWarp, không phải nhân bản |
 
 Kết luận cho Postboat: `SCHEDULE-AGENT=CLIENT` không đủ làm mặc định vì Zimbra bỏ qua. Mặc định phải bỏ `ORGANIZER`/`ATTENDEE` khỏi sự kiện có người tham dự (giữ dưới dạng `X-POSTBOAT-*`, ghi danh sách vào `DESCRIPTION`); chỉ giữ nguyên (`keep_attendees = true`) khi đích được chứng minh không gửi — với IceWarp là **có sẵn** (tôn trọng tham số, đo 18/09), với Zimbra là lệnh `zmprov mcf` ở trên.

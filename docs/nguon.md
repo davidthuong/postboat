@@ -139,7 +139,11 @@ cho `postboat.py lists`. Chạy thật trên một tenant test 18/09/2026 thấy
 Microsoft 365 Group) — file tương ứng chỉ còn BOM và tool hiểu là 0 nhóm;
 `Get-UnifiedGroupLinks` trả cả **user không có mailbox** (cột `Member` rỗng,
 `MemberType` = `User`) — tool bỏ và báo từng dòng; và tên nhóm có dấu tiếng
-Việt — script IceWarp sinh ra có `chcp 65001` để `tool.exe` nhận đúng tên.
+Việt — đưa qua tham số `u_name` của `tool.exe` thì mất dấu ("THƯƠNG MẠI" thành
+"THUONG M?I", `chcp` không cứu được vì tham số đi qua bảng mã ANSI), nên script
+sinh ra chỉ đặt tên không dấu lúc `create`, rồi nạp tên đầy đủ bằng
+`tool.exe import account names.csv u_name` (CSV UTF-8, đo là giữ đủ dấu và
+không đụng thuộc tính khác).
 Chạy từ tiến trình không có cửa sổ thì `Connect-ExchangeOnline` phải có
 `-DisableWAM`, không thì chết với "A window handle must be configured".
 

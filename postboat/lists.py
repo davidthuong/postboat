@@ -28,6 +28,7 @@ from __future__ import annotations
 import csv
 import json
 import time
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
@@ -340,6 +341,33 @@ def _q(value: str) -> str:
     return '"%s"' % " ".join((value or "").replace('"', "'").split())
 
 
+def ascii_name(name: str) -> str:
+    """Ten khong dau, de dua qua THAM SO dong lenh cua tool.exe.
+
+    Do 18/09/2026 tren IceWarp Windows: tool.exe la chuong trinh khong-Unicode,
+    tham so di qua bang ma ANSI cua he thong -- "THƯƠNG MẠI" thanh "THUONG M?I",
+    va chcp 65001 khong doi duoc dieu do. Ten day du di qua file: xem
+    names_rows() va dong `import account names.csv u_name` trong script.
+    """
+    text = (name or "").replace("đ", "d").replace("Đ", "D")
+    text = unicodedata.normalize("NFD", text)
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    text = text.encode("ascii", "ignore").decode("ascii")
+    return " ".join(text.split())
+
+
+def names_rows(lists: Sequence[MailList]) -> List[Tuple[str, str]]:
+    """(dia chi, ten day du) cho nhom co ten khong phai ASCII thuan -- nhung
+    ten ma tham so dong lenh se lam hong. Dau phay va ngoac kep bi bo vi CSV
+    cua tool.exe khong co tai lieu ve quoting."""
+    rows: List[Tuple[str, str]] = []
+    for item in lists:
+        name = " ".join((item.name or "").replace(",", " ").replace('"', "'").split())
+        if name and name != ascii_name(name):
+            rows.append((item.address, name))
+    return rows
+
+
 def member_filename(address: str) -> str:
     return address.lower() + ".txt"
 
@@ -403,20 +431,24 @@ def icewarp_script_lines(lists: Sequence[MailList], listdir: str,
     tooldir = tooldir or default_tooldir(listdir)
     field = "g_listfile" if kind == "group" else "m_listfile"
     creates = icewarp_lines(lists, listdir, kind, default_owner)
+    names = names_rows(lists)
+    names_remote = remote_join(listdir, "names.csv")
     stamp = time.strftime("%Y-%m-%d %H:%M")
     out: List[str] = []
     if windows:
         out += ["@echo off",
                 "rem Sinh boi postboat.py lists luc %s. Chay trong cmd (Administrator)." % stamp,
                 "rem Sai thu muc cai IceWarp thi sua dong cd duoi day, hoac sinh lai voi --tooldir.",
-                # File nay la UTF-8; ten nhom that co dau tieng Viet (tenant test
-                # 18/09). Khong doi codepage thi cmd doc sai ten truoc khi dua
-                # cho tool.exe.
-                "chcp 65001 >nul",
                 'cd /d "%s"' % tooldir]
         for item, create in zip(lists, creates):
             out.append(_cmd_line("%s %s" % (tool, create)))
             out.append("%s display account %s u_type %s" % (tool, item.address, field))
+        if names:
+            # Ten co dau khong di qua tham so duoc (ANSI); nap qua file UTF-8.
+            out.append("rem %d ten co dau: nap qua file, vi tham so dong lenh lam mat dau" % len(names))
+            out.append('%s import account "%s" u_name' % (tool, names_remote))
+            out.append("rem Kiem ten: %s export account <nhom> u_name > ten.txt roi mo bang Notepad"
+                       " -- cmd hien lech, dung tin man hinh" % tool)
         out.append("echo Xong: %d nhom." % len(lists))
     else:
         out += ["#!/bin/sh",
@@ -426,6 +458,9 @@ def icewarp_script_lines(lists: Sequence[MailList], listdir: str,
         for item, create in zip(lists, creates):
             out.append(_sh_line("./%s %s" % (tool, create)))
             out.append("./%s display account %s u_type %s" % (tool, item.address, field))
+        if names:
+            out.append("# %d ten co dau: nap qua file, vi tham so dong lenh lam mat dau" % len(names))
+            out.append('./%s import account "%s" u_name' % (tool, names_remote))
         out.append('echo "Xong: %d nhom."' % len(lists))
     return out
 
@@ -443,7 +478,9 @@ def icewarp_lines(lists: Sequence[MailList], listdir: str, kind: str = "group",
     lines: List[str] = []
     for item in lists:
         path = remote_join(listdir, "members", member_filename(item.address))
-        name = item.name or item.address.split("@", 1)[0]
+        # Tham so dong lenh chi mang ten khong dau (du phong neu import hong);
+        # ten day du nap sau bang `import account names.csv u_name`.
+        name = ascii_name(item.name) or item.address.split("@", 1)[0]
         if kind == "group":
             lines.append("create account %s u_type %d u_name %s g_listfile %s"
                          % (item.address, utype, _q(name), _q(path)))
@@ -484,6 +521,13 @@ def write_icewarp(outdir: Path, lists: Sequence[MailList], listdir: str,
     with script.open("w", encoding="utf-8", newline="") as fh:
         fh.write(eol.join(icewarp_script_lines(
             lists, listdir, kind, default_owner, tooldir)) + eol)
+    names = names_rows(lists)
+    if names:
+        # UTF-8 KHONG BOM: do 18/09/2026, `tool.exe import account names.csv
+        # u_name` doc file nay ra dung dau, va khong dung toi u_type/g_listfile.
+        with (outdir / "names.csv").open("w", encoding="utf-8", newline="") as fh:
+            for address, name in names:
+                fh.write("%s,%s%s" % (address, name, eol))
     tool = tool_name(listdir)
     field = "g_listfile" if kind == "group" else "m_listfile"
     readme = outdir / "README.txt"
@@ -495,10 +539,15 @@ def write_icewarp(outdir: Path, lists: Sequence[MailList], listdir: str,
             "  (script cd vao %s roi goi %s create + display cho tung nhom;"
             % (tooldir or default_tooldir(listdir), tool),
             "   moi nhom phai in 'Account ... created.' va u_type: %d)" % ICEWARP_KINDS[kind],
-            "Kiem lai: %s display account <nhom> u_type u_name %s" % (tool, field),
+            "Kiem lai: %s display account <nhom> u_type %s" % (tool, field),
             "%d nhom, %d thanh vien. Loai tai khoan: %s (u_type %d)." % (
                 len(lists), sum(len(l.members) for l in lists),
                 kind, ICEWARP_KINDS[kind]),
+            ("names.csv: %d ten co dau, script nap bang `%s import account names.csv "
+             "u_name` (tham so dong lenh lam mat dau). Kiem ten bang `%s export "
+             "account <nhom> u_name > ten.txt` roi mo Notepad; cmd hien lech."
+             % (len(names), tool, tool)) if names else
+            "Ten nhom deu ASCII, khong can names.csv.",
             "icewarp.batch la cung noi dung cho `%s file batch` -- tren may test "
             "18/09/2026 lenh do im lang va khong tao gi, chi de tham khao." % tool,
             ""]))

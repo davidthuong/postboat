@@ -248,8 +248,10 @@ class TestWriters(unittest.TestCase):
         self.assertTrue(raw.endswith(b"\r\n"))
         lines = raw.decode("utf-8").split("\r\n")
         self.assertEqual(lines[0], "@echo off")
-        self.assertIn("chcp 65001 >nul", lines)     # ten nhom co dau tieng Viet
         self.assertIn('cd /d "C:\\Program Files\\IceWarp"', lines)
+        # Ten deu ASCII: khong co names.csv, khong co dong import.
+        self.assertFalse((self.tmp / "names.csv").exists())
+        self.assertFalse(any("import account" in ln for ln in lines))
         self.assertIn(
             'tool.exe create account sales@moi.vn u_type 7 u_name "Phong Kinh Doanh" '
             'g_listfile "C:\\IceWarp\\postboat-lists\\members\\sales@moi.vn.txt"',
@@ -260,6 +262,35 @@ class TestWriters(unittest.TestCase):
             self.tmp, self.dest, listdir="D:\\lists", kind="group",
             tooldir="D:\\Apps\\IceWarp")
         self.assertIn('cd /d "D:\\Apps\\IceWarp"', script.read_text(encoding="utf-8"))
+
+    def test_vietnamese_name_goes_through_names_csv_not_the_command_line(self):
+        """Do 18/09/2026: tham so u_name qua tool.exe mat dau ("THUONG M?I"),
+        con `import account names.csv u_name` (UTF-8 khong BOM) giu du dau va
+        khong dung u_type/g_listfile. Tham so chi mang ten khong dau du phong."""
+        ten = "CÔNG TY TNHH THƯƠNG MẠI, DỊCH VỤ ĐẠI TÍN"
+        groups = [lists.MailList("cty@moi.vn", name=ten, members=["a@moi.vn"]),
+                  lists.MailList("hr@moi.vn", name="Nhan su", members=[])]
+        self.assertEqual(lists.ascii_name(ten), "CONG TY TNHH THUONG MAI, DICH VU DAI TIN")
+        script, _files = lists.write_icewarp(
+            self.tmp, groups, listdir="C:\\IceWarp\\postboat-lists", kind="group")
+        lines = script.read_bytes().decode("utf-8").split("\r\n")
+        self.assertIn(
+            'tool.exe create account cty@moi.vn u_type 7 u_name "CONG TY TNHH THUONG MAI, '
+            'DICH VU DAI TIN" g_listfile "C:\\IceWarp\\postboat-lists\\members\\cty@moi.vn.txt"',
+            lines)
+        self.assertIn('tool.exe import account "C:\\IceWarp\\postboat-lists\\names.csv" u_name',
+                      lines)
+        self.assertNotIn("chcp", "\n".join(lines))
+        raw = (self.tmp / "names.csv").read_bytes()
+        self.assertFalse(raw.startswith(b"\xef\xbb\xbf"))          # khong BOM
+        self.assertEqual(raw.decode("utf-8"),
+                         "cty@moi.vn,CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ ĐẠI TÍN\r\n")  # bo dau phay
+        self.assertIn("names.csv", (self.tmp / "README.txt").read_text(encoding="utf-8"))
+        # Linux: cung mot y, khac tool va dau tach.
+        script, _files = lists.write_icewarp(
+            self.tmp, groups, listdir="/opt/icewarp/postboat-lists", kind="group")
+        self.assertIn('./tool.sh import account "/opt/icewarp/postboat-lists/names.csv" u_name',
+                      script.read_text(encoding="utf-8").split("\n"))
 
     def test_icewarp_cmd_escapes_percent_and_sh_escapes_dollar(self):
         odd = [lists.MailList("km@moi.vn", name="Giam 50% & $ dola")]

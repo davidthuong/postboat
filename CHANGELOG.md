@@ -38,9 +38,13 @@ Phần lớn các mục "Sửa" ở đây đến từ những cuộc migrate ch�
   (`-DisableWAM` khi chạy từ tiến trình không có cửa sổ). Dữ liệu thật sửa ba
   chỗ: file xuất **rỗng** (tenant không có distribution group) giờ là 0 nhóm
   kèm cảnh báo thay vì dừng lệnh; thành viên không có mailbox (`MemberType`
-  `User`, địa chỉ trống) bị bỏ có báo; `icewarp.cmd` thêm `chcp 65001` vì tên
-  nhóm thật có dấu tiếng Việt. Kết quả: 2 Microsoft 365 Group, 5 thành viên,
-  ra đúng bộ lệnh cho IceWarp.
+  `User`, địa chỉ trống) bị bỏ có báo; **tên nhóm có dấu tiếng Việt** qua tham
+  số `u_name` của `tool.exe` bị mất dấu ("THUONG M?I", `chcp 65001` không cứu
+  được vì tham số đi qua bảng mã ANSI) — đo trên máy IceWarp cho thấy
+  `tool.exe import account names.csv u_name` với CSV UTF-8 giữ đủ dấu và không
+  đụng `u_type`/`g_listfile`, nên script giờ `create` với tên không dấu rồi
+  `import` tên đầy đủ từ `names.csv`. Kết quả trên tenant thật: 2 Microsoft
+  365 Group, 5 thành viên, tạo trên IceWarp đúng tên đủ dấu.
 
 ---
 

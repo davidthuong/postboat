@@ -952,8 +952,9 @@ chỉ theo `users.csv` (hộp thư có trong đó lấy `dst_user`, còn lại �
 ghi thêm `lists/icewarp.cmd` (hoặc `.sh`) và `lists/members/*.txt`: copy cả thư
 mục lên máy IceWarp và chạy script đó — nó `cd` vào thư mục cài rồi gọi
 `tool.exe create account ... u_type 7 ... g_listfile ...` và `display` cho từng
-nhóm, in "Account ... created." ngay tại chỗ. Postboat **không** tự tạo tài
-khoản trên đích. Cũng có `icewarp.batch` cho `tool file batch`, nhưng trên máy
+nhóm, in "Account ... created." ngay tại chỗ. Tên nhóm có dấu tiếng Việt đi
+qua `names.csv` + `tool.exe import account ... u_name`, vì qua tham số dòng lệnh
+thì mất dấu (đo 18/09/2026). Postboat **không** tự tạo tài khoản trên đích. Cũng có `icewarp.batch` cho `tool file batch`, nhưng trên máy
 test 18/09/2026 lệnh đó im lặng và không tạo gì, còn gõ thẳng `tool.exe create`
 thì tạo ngay — nên script là đường chính.
 `--listdir` là đường dẫn **trên máy IceWarp**, và nó quyết định luôn phần còn
