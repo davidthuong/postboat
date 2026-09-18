@@ -23,6 +23,13 @@ Phần lớn các mục "Sửa" ở đây đến từ những cuộc migrate ch�
   Postboat không bao giờ DELETE, nhưng phần dọn dẹp của `testrig/pimprobe.py`
   thì có, nên nó vô hiệu hoá sự kiện trước khi xoá. Bảng đo đầy đủ ở
   `research/calendar-contacts.md`.
+- **`lists` sinh `icewarp.cmd` / `icewarp.sh` gọi thẳng `tool.exe`** thay vì
+  trông vào `tool.exe file batch`: trên máy IceWarp test, `file batch` chạy im
+  lặng và không tạo gì, còn gõ thẳng `tool.exe create account ... u_type 7
+  u_name ... g_listfile ...` thì tạo ngay và `display` trả về đúng ba biến.
+  Script `cd` vào thư mục cài (`--tooldir`, mặc định `C:\Program Files\IceWarp`
+  hoặc `/opt/icewarp`) rồi sau mỗi `create` có một `display` để đọc kết quả tại
+  chỗ. `icewarp.batch` vẫn sinh để tham khảo.
 
 ---
 

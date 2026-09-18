@@ -178,8 +178,10 @@ class TestWriters(unittest.TestCase):
         self.assertEqual(back.lists["trong@moi.vn"].members, [])
 
     def test_icewarp_group_batch_and_member_files(self):
-        batch, files = lists.write_icewarp(
+        script, files = lists.write_icewarp(
             self.tmp, self.dest, listdir="/opt/icewarp/postboat-lists", kind="group")
+        self.assertEqual(script.name, "icewarp.sh")
+        batch = self.tmp / "icewarp.batch"
         lines = batch.read_text(encoding="utf-8").splitlines()
         self.assertEqual(len(lines), 3)
         self.assertIn(
@@ -198,10 +200,11 @@ class TestWriters(unittest.TestCase):
     def test_icewarp_windows_dest_gets_windows_paths_crlf_and_tool_exe(self):
         """IceWarp ban Windows la ban hay gap. Duong dan quyet dinh ca ba thu,
         va mot file thanh vien LF gui sang do la rui ro khong can thiet."""
-        batch, files = lists.write_icewarp(
+        script, files = lists.write_icewarp(
             self.tmp, self.dest, listdir="C:\\IceWarp\\postboat-lists",
             kind="group")
-        raw = batch.read_bytes()
+        self.assertEqual(script.name, "icewarp.cmd")
+        raw = (self.tmp / "icewarp.batch").read_bytes()
         self.assertIn(
             'g_listfile "C:\\IceWarp\\postboat-lists\\members\\sales@moi.vn.txt"',
             raw.decode("utf-8"))
@@ -211,9 +214,39 @@ class TestWriters(unittest.TestCase):
         self.assertEqual(members,
                          b"an@moi.vn\r\nbinh.le@moi.vn\r\ndoitac@gmail.com\r\n")
         readme = (self.tmp / "README.txt").read_text(encoding="utf-8")
-        self.assertIn("tool.exe file batch C:\\IceWarp\\postboat-lists\\icewarp.batch",
-                      readme)
-        self.assertIn("g_listfile_contents", readme)
+        self.assertIn("C:\\IceWarp\\postboat-lists\\icewarp.cmd", readme)
+        self.assertIn("tool.exe file batch", readme)
+
+    def test_icewarp_cmd_script_calls_tool_directly(self):
+        """Do 18/09/2026: `tool.exe file batch` im lang, khong tao gi; go thang
+        `tool.exe create account ...` thi tao ngay. Script la duong chinh."""
+        script, _files = lists.write_icewarp(
+            self.tmp, self.dest, listdir="C:\\IceWarp\\postboat-lists",
+            kind="group")
+        raw = script.read_bytes()
+        self.assertTrue(raw.endswith(b"\r\n"))
+        lines = raw.decode("utf-8").split("\r\n")
+        self.assertEqual(lines[0], "@echo off")
+        self.assertIn('cd /d "C:\\Program Files\\IceWarp"', lines)
+        self.assertIn(
+            'tool.exe create account sales@moi.vn u_type 7 u_name "Phong Kinh Doanh" '
+            'g_listfile "C:\\IceWarp\\postboat-lists\\members\\sales@moi.vn.txt"',
+            lines)
+        self.assertIn("tool.exe display account sales@moi.vn u_type g_listfile", lines)
+        # --tooldir ghi de thu muc cai.
+        script, _files = lists.write_icewarp(
+            self.tmp, self.dest, listdir="D:\\lists", kind="group",
+            tooldir="D:\\Apps\\IceWarp")
+        self.assertIn('cd /d "D:\\Apps\\IceWarp"', script.read_text(encoding="utf-8"))
+
+    def test_icewarp_cmd_escapes_percent_and_sh_escapes_dollar(self):
+        odd = [lists.MailList("km@moi.vn", name="Giam 50% & $ dola")]
+        cmd = lists.icewarp_script_lines(odd, "C:\\IceWarp\\lists")
+        self.assertTrue(any('u_name "Giam 50%% & $ dola"' in ln for ln in cmd), cmd)
+        sh = lists.icewarp_script_lines(odd, "/opt/icewarp/lists")
+        self.assertEqual(sh[0], "#!/bin/sh")
+        self.assertTrue(any('./tool.sh create account km@moi.vn' in ln and
+                            'Giam 50% & \\$ dola' in ln for ln in sh), sh)
 
     def test_windows_path_detection(self):
         for path in ("C:\\IceWarp", "c:/IceWarp", "\\\\srv\\share\\lists",
@@ -290,8 +323,9 @@ class TestCli(unittest.TestCase):
         self.assertIn("cu.com -> moi.vn", text)
         # Mac dinh la Windows: IceWarp hau het chay tren do.
         self.assertIn("Tren may IceWarp (Windows):", text)
-        self.assertIn("tool.exe file batch C:\\IceWarp\\postboat-lists\\icewarp.batch",
-                      text)
+        self.assertIn("chay C:\\IceWarp\\postboat-lists\\icewarp.cmd", text)
+        self.assertIn("cd vao C:\\Program Files\\IceWarp", text)
+        self.assertTrue((out / "icewarp.cmd").exists())
         self.assertIn("1 ngoai domain", text)
         state = lists.load_state(self.tmp / "state")
         self.assertEqual(sorted(state["lists"]), ["all@moi.vn", "sales@moi.vn"])
@@ -306,8 +340,11 @@ class TestCli(unittest.TestCase):
                                   "--listdir", "/opt/icewarp/postboat-lists")
         self.assertEqual(code, 0, text)
         self.assertIn("Tren may IceWarp (Linux):", text)
-        self.assertIn("tool.sh file batch /opt/icewarp/postboat-lists/icewarp.batch",
-                      text)
+        self.assertIn("chay /opt/icewarp/postboat-lists/icewarp.sh", text)
+        self.assertNotIn("Administrator", text)
+        script = (out / "icewarp.sh").read_bytes()
+        self.assertTrue(script.startswith(b"#!/bin/sh\n"))
+        self.assertIn(b"./tool.sh create account sales@moi.vn u_type 7", script)
         batch = (out / "icewarp.batch").read_bytes()
         self.assertIn(b"/opt/icewarp/postboat-lists/members/sales@moi.vn.txt", batch)
         self.assertNotIn(b"\r\n", batch)

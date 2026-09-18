@@ -363,6 +363,63 @@ def remote_join(listdir: str, *parts: str) -> str:
     return sep.join([listdir.rstrip("/\\")] + [p.strip("/\\") for p in parts])
 
 
+def default_tooldir(listdir: str) -> str:
+    """Thu muc cai IceWarp, noi co tool.exe / tool.sh."""
+    return "C:\\Program Files\\IceWarp" if windows_path(listdir) else "/opt/icewarp"
+
+
+def icewarp_script_name(listdir: str) -> str:
+    return "icewarp.cmd" if windows_path(listdir) else "icewarp.sh"
+
+
+def _cmd_line(line: str) -> str:
+    """Dong trong file .cmd: % la bien moi truong ke ca trong ngoac kep."""
+    return line.replace("%", "%%")
+
+
+def _sh_line(line: str) -> str:
+    """Dong trong file .sh: trong ngoac kep, $ va ` van duoc shell hieu."""
+    return line.replace("$", "\\$").replace("`", "\\`")
+
+
+def icewarp_script_lines(lists: Sequence[MailList], listdir: str,
+                         kind: str = "group", default_owner: str = "",
+                         tooldir: str = "") -> List[str]:
+    """Script goi thang tool.exe / tool.sh tung dong, thay cho `file batch`.
+
+    Do 18/09/2026 tren IceWarp Windows: `tool.exe file batch <file>` im lang
+    va KHONG tao gi, con go thang `tool.exe create account ...` thi tao ngay
+    va in "Account ... created.". Nen script la duong chinh; sau moi nhom co
+    mot dong display de doc ket qua ngay tai cho, khong phai tin.
+    """
+    windows = windows_path(listdir)
+    tool = tool_name(listdir)
+    tooldir = tooldir or default_tooldir(listdir)
+    field = "g_listfile" if kind == "group" else "m_listfile"
+    creates = icewarp_lines(lists, listdir, kind, default_owner)
+    stamp = time.strftime("%Y-%m-%d %H:%M")
+    out: List[str] = []
+    if windows:
+        out += ["@echo off",
+                "rem Sinh boi postboat.py lists luc %s. Chay trong cmd (Administrator)." % stamp,
+                "rem Sai thu muc cai IceWarp thi sua dong cd duoi day, hoac sinh lai voi --tooldir.",
+                'cd /d "%s"' % tooldir]
+        for item, create in zip(lists, creates):
+            out.append(_cmd_line("%s %s" % (tool, create)))
+            out.append("%s display account %s u_type %s" % (tool, item.address, field))
+        out.append("echo Xong: %d nhom." % len(lists))
+    else:
+        out += ["#!/bin/sh",
+                "# Sinh boi postboat.py lists luc %s." % stamp,
+                '# Sai thu muc cai IceWarp thi sua dong cd duoi day, hoac sinh lai voi --tooldir.',
+                'cd "%s" || exit 1' % tooldir]
+        for item, create in zip(lists, creates):
+            out.append(_sh_line("./%s %s" % (tool, create)))
+            out.append("./%s display account %s u_type %s" % (tool, item.address, field))
+        out.append('echo "Xong: %d nhom."' % len(lists))
+    return out
+
+
 def icewarp_lines(lists: Sequence[MailList], listdir: str, kind: str = "group",
                   default_owner: str = "") -> List[str]:
     """Moi nhom mot dong `create account ...` cho `tool file batch`.
@@ -391,7 +448,10 @@ def icewarp_lines(lists: Sequence[MailList], listdir: str, kind: str = "group",
 
 
 def write_icewarp(outdir: Path, lists: Sequence[MailList], listdir: str,
-                  kind: str = "group", default_owner: str = "") -> Tuple[Path, List[Path]]:
+                  kind: str = "group", default_owner: str = "",
+                  tooldir: str = "") -> Tuple[Path, List[Path]]:
+    """Ghi script (icewarp.cmd / icewarp.sh), file batch tham khao, file thanh
+    vien va README. Tra ve (duong dan script, cac file thanh vien)."""
     outdir = Path(outdir)
     members_dir = outdir / "members"
     members_dir.mkdir(parents=True, exist_ok=True)
@@ -410,6 +470,10 @@ def write_icewarp(outdir: Path, lists: Sequence[MailList], listdir: str,
     lines = icewarp_lines(lists, listdir, kind, default_owner)
     with batch.open("w", encoding="utf-8", newline="") as fh:
         fh.write(eol.join(lines) + eol)
+    script = outdir / icewarp_script_name(listdir)
+    with script.open("w", encoding="utf-8", newline="") as fh:
+        fh.write(eol.join(icewarp_script_lines(
+            lists, listdir, kind, default_owner, tooldir)) + eol)
     tool = tool_name(listdir)
     field = "g_listfile" if kind == "group" else "m_listfile"
     readme = outdir / "README.txt"
@@ -417,16 +481,18 @@ def write_icewarp(outdir: Path, lists: Sequence[MailList], listdir: str,
         fh.write(eol.join([
             "Sinh boi postboat.py lists luc %s." % time.strftime("%Y-%m-%d %H:%M"),
             "Copy nguyen thu muc nay len may IceWarp tai: %s" % listdir,
-            "Roi chay:  %s file batch %s" % (
-                tool, remote_join(listdir, "icewarp.batch")),
-            "Kiem:      %s display account <nhom> u_type %s" % (tool, field),
-            "Doc lai danh sach: %s display account <nhom> %s_contents" % (tool, field),
+            "Roi chay:  %s" % remote_join(listdir, script.name),
+            "  (script cd vao %s roi goi %s create + display cho tung nhom;"
+            % (tooldir or default_tooldir(listdir), tool),
+            "   moi nhom phai in 'Account ... created.' va u_type: %d)" % ICEWARP_KINDS[kind],
+            "Kiem lai: %s display account <nhom> u_type u_name %s" % (tool, field),
             "%d nhom, %d thanh vien. Loai tai khoan: %s (u_type %d)." % (
                 len(lists), sum(len(l.members) for l in lists),
                 kind, ICEWARP_KINDS[kind]),
-            "%s nam ngay trong <InstallDirectory> cua IceWarp." % tool,
+            "icewarp.batch la cung noi dung cho `%s file batch` -- tren may test "
+            "18/09/2026 lenh do im lang va khong tao gi, chi de tham khao." % tool,
             ""]))
-    return batch, files
+    return script, files
 
 
 # --------------------------------------------------------------------------- #

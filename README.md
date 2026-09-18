@@ -949,8 +949,13 @@ xuất một kiểu và tạo một kiểu. Tool đọc file xuất của nguồ
 `gam print group-members`; cách xuất ở [docs/nguon.md](docs/nguon.md)), đổi địa
 chỉ theo `users.csv` (hộp thư có trong đó lấy `dst_user`, còn lại đổi domain,
 địa chỉ ngoài domain giữ nguyên), rồi ghi `lists/lists.csv`. Đích là IceWarp thì
-ghi thêm `lists/icewarp.batch` và `lists/members/*.txt`: copy cả thư mục lên máy
-IceWarp và chạy `tool file batch` — tool **không** tự tạo tài khoản trên đích.
+ghi thêm `lists/icewarp.cmd` (hoặc `.sh`) và `lists/members/*.txt`: copy cả thư
+mục lên máy IceWarp và chạy script đó — nó `cd` vào thư mục cài rồi gọi
+`tool.exe create account ... u_type 7 ... g_listfile ...` và `display` cho từng
+nhóm, in "Account ... created." ngay tại chỗ. Postboat **không** tự tạo tài
+khoản trên đích. Cũng có `icewarp.batch` cho `tool file batch`, nhưng trên máy
+test 18/09/2026 lệnh đó im lặng và không tạo gì, còn gõ thẳng `tool.exe create`
+thì tạo ngay — nên script là đường chính.
 `--listdir` là đường dẫn **trên máy IceWarp**, và nó quyết định luôn phần còn
 lại. Mặc định `C:\IceWarp\postboat-lists` vì IceWarp hầu hết chạy trên Windows:
 file lệnh dùng dấu `\`, file thành viên kết thúc dòng CRLF, lệnh in ra là

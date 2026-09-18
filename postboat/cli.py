@@ -1332,28 +1332,33 @@ def cmd_lists(args, cfg: Config) -> int:
 
     key = cfg.dest.provider.key
     if key == "icewarp":
-        batch, files = lists.write_icewarp(
+        tooldir = getattr(args, "tooldir", "") or lists.default_tooldir(args.listdir)
+        script, files = lists.write_icewarp(
             out, dest_lists, listdir=args.listdir, kind=args.kind,
-            default_owner=args.owner)
+            default_owner=args.owner, tooldir=tooldir)
         say("Da ghi %s va %d file thanh vien trong %s" % (
-            batch, len(files), out / "members"))
+            script, len(files), out / "members"))
         tool = lists.tool_name(args.listdir)
         field = "g_listfile" if args.kind == "group" else "m_listfile"
         say("")
         say("Tren may IceWarp (%s):" % (
             "Windows" if lists.windows_path(args.listdir) else "Linux"))
         say("  1. copy nguyen thu muc %s len %s" % (out, args.listdir))
-        say("  2. %s file batch %s" % (
-            tool, lists.remote_join(args.listdir, batch.name)))
-        say("  3. kiem mot nhom: %s display account %s u_type %s" % (
-            tool, dest_lists[0].address, field))
-        say("  4. doc lai danh sach: %s display account %s %s_contents" % (
-            tool, dest_lists[0].address, field))
-        say("%s nam ngay trong <InstallDirectory>. Duong dan trong file lenh "
-            "theo kieu cua --listdir, nen dich Windows phai dua duong dan "
-            "Windows (vd C:\\IceWarp\\postboat-lists)." % tool)
-        say("File thanh vien moi dia chi mot dong (theo tai lieu Mailing List); "
-            "voi Group thi buoc 4 la cach xac nhan server doc dung.")
+        say("  2. chay %s (%s). Script cd vao %s roi goi %s create + display "
+            "cho tung nhom." % (
+                lists.remote_join(args.listdir, script.name),
+                "cmd, chay nhu Administrator" if lists.windows_path(args.listdir)
+                else "sh, quyen chay tool.sh",
+                tooldir, tool))
+        say("  3. moi nhom phai in 'Account ... created.' va u_type: %d. "
+            "Kiem lai bat ky luc nao: %s display account %s u_type u_name %s"
+            % (lists.ICEWARP_KINDS[args.kind], tool, dest_lists[0].address, field))
+        say("Duong dan trong script theo kieu cua --listdir, nen dich Windows "
+            "phai dua duong dan Windows (vd C:\\IceWarp\\postboat-lists); thu muc "
+            "cai khac mac dinh thi them --tooldir.")
+        say("icewarp.batch la ban cho `%s file batch` -- tren may test 18/09 lenh "
+            "do im lang va khong tao gi, chi de tham khao." % tool)
+        say("File thanh vien moi dia chi mot dong.")
     else:
         say("Dich %s: chua co bo lenh tao nhom, dung %s de tao tay."
             % (cfg.dest.provider.name, csv_path))
@@ -1599,6 +1604,10 @@ def build_parser() -> argparse.ArgumentParser:
     ls.add_argument("--kind", choices=("group", "mailinglist"), default="group",
                     help="loai tai khoan tao tren IceWarp: group (u_type 7, "
                          "mac dinh) hay mailinglist (u_type 1)")
+    ls.add_argument("--tooldir", default="",
+                    help="thu muc cai IceWarp tren may dich (noi co tool.exe / "
+                         "tool.sh); mac dinh C:\\Program Files\\IceWarp hoac "
+                         "/opt/icewarp tuy kieu --listdir")
     ls.add_argument("--listdir", default="C:\\IceWarp\\postboat-lists",
                     help="duong dan TREN MAY ICEWARP se chua thu muc --out "
                          "(mac dinh kieu Windows vi IceWarp hau het chay tren "

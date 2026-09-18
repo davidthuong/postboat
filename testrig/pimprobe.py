@@ -409,15 +409,16 @@ def probe_lists(domain: str, members: Sequence[str], ssh: str,
                 remote_dir: str, kind: str, tool: str = "") -> None:
     """Cai gi da chac va cai gi con phai do:
 
-      chac  `tool file batch <file>`, moi dong mot lenh, KHONG co chu 'tool'
-            o dau dong (Command Line Tool, docs.icewarp.com).
+      chac  Go thang `tool.exe create account <nhom> u_type 7 u_name "..."
+            g_listfile "..."` tao ngay va in "Account ... created." (do
+            18/09/2026 tren IceWarp Windows). `tool.exe file batch <file>`
+            tren cung may do chay im lang va KHONG tao gi -- nen script
+            icewarp.cmd / icewarp.sh goi thang tool tung dong la duong chinh.
       chac  U_Type 7 = Group, 1 = Mailing list; G_ListFile = 'List file',
-            M_ListFile = 'Path to list file' (hang so API IceWarp, file
-            APIconst.pas nam trong <InstallDirectory>\\API\\Delphi\\ ngay tren
-            may IceWarp -- doi chieu tai cho duoc).
-      do    dinh dang file thanh vien -- moi dia chi mot dong la suy tu
-            'members file content', tai lieu khong viet ra. Buoc doc lai bang
-            g_listfile_contents duoi day la de tra loi dung cho nay.
+            M_ListFile = 'Path to list file' (API Variables, docs.icewarp.com).
+      do    server co doc file thanh vien (moi dia chi mot dong) va giao thu
+            cho dung nguoi khong. Cach do duy nhat dang tin: gui mot thu toi
+            nhom roi xem tung thanh vien co nhan khong.
 
     IceWarp ban Windows la ban hay gap, va no doi ba thu: duong dan Windows,
     `tool.exe` thay cho `tool.sh`, va thuong khong co SSH. Khong co --ssh thi
@@ -429,35 +430,34 @@ def probe_lists(domain: str, members: Sequence[str], ssh: str,
     is_win = windows_path(remote_dir)
     tool = tool or tool_name(remote_dir)
     field = "g_listfile" if kind == "group" else "m_listfile"
-    say("### 4. `%s file batch`: u_type %s + %s   (may dich: %s)"
+    say("### 4. `%s create account`: u_type %s + %s   (may dich: %s)"
         % (tool, "7 (User group)" if kind == "group" else "1 (Mailing list)",
            field, "Windows" if is_win else "Linux"))
     address = "probe-nhom-%s@%s" % (TAG, domain)
     group = MailList(address=address, name="Probe nhom %s" % TAG,
                      members=list(members))
     outdir = Path(tempfile.mkdtemp(prefix="pimprobe-lists-"))
-    batch, files = write_icewarp(outdir, [group], remote_dir, kind=kind)
+    script, files = write_icewarp(outdir, [group], remote_dir, kind=kind)
     say("  Sinh tai %s" % outdir)
-    for path in [batch] + list(files):
+    for path in [script] + list(files):
         raw = path.read_bytes()
         say("  --- %s  (%s)" % (path.name,
                                 "CRLF" if b"\r\n" in raw else "LF"))
         for line in raw.decode("utf-8").splitlines():
             say("      %s" % line)
 
-    batch_remote = remote_join(remote_dir, batch.name)
+    script_remote = remote_join(remote_dir, script.name)
     if not ssh:
         say()
         say("  Khong co --ssh. Tren may IceWarp, copy thu muc tren vao %s"
             % remote_dir)
-        say("  roi go (%s):" % ("cmd, chay nhu Administrator" if is_win
-                                else "shell"))
-        say('      cd "%s"' % ("<InstallDirectory>" if is_win else "/opt/icewarp"))
-        say("      %s file batch %s" % (tool, batch_remote))
-        say("      %s display account %s u_name u_type %s" % (tool, address, field))
-        say("      %s display account %s %s_contents" % (tool, address, field))
-        say("  Thanh vien phai dung %d dia chi: %s"
-            % (len(members), ", ".join(members)))
+        say("  roi chay (%s):" % ("cmd, chay nhu Administrator" if is_win
+                                  else "sh"))
+        say("      %s" % script_remote)
+        say("  Phai thay 'Account %s created.' va u_type: %d."
+            % (address, 7 if kind == "group" else 1))
+        say("  Roi gui MOT thu toi %s: %d thanh vien phai nhan (%s)."
+            % (address, len(members), ", ".join(members)))
         say("  Xong thi xoa: %s delete account %s" % (tool, address))
         say()
         return
@@ -470,19 +470,18 @@ def probe_lists(domain: str, members: Sequence[str], ssh: str,
         run(["ssh", ssh, 'mkdir "%s"' % remote_join(remote_dir, "members")])
     else:
         run(["ssh", ssh, "mkdir -p %s" % remote_join(remote_dir, "members")])
-    run(["scp", str(batch), "%s:%s" % (ssh, batch_remote)])
+    run(["scp", str(script), "%s:%s" % (ssh, script_remote)])
     for path in files:
         run(["scp", str(path),
              "%s:%s" % (ssh, remote_join(remote_dir, "members", path.name))])
-    say("  Chay `file batch`  (moi dong mot lenh, khong co chu 'tool'):")
-    run(["ssh", ssh, '"%s" file batch "%s"' % (tool, batch_remote)], show=True)
-    say("  Doc lai nhom vua tao (u_type phai la %d):" % (7 if kind == "group" else 1))
-    run(["ssh", ssh, '"%s" display account %s u_name u_type %s'
-         % (tool, address, field)], show=True)
-    say("  Noi dung danh sach thanh vien server doc duoc (%s_contents):" % field)
-    run(["ssh", ssh, '"%s" display account %s %s_contents'
-         % (tool, address, field)], show=True)
+    say("  Chay script (goi thang %s create + display tung nhom):" % tool)
+    if is_win:
+        run(["ssh", ssh, 'cmd /c "%s"' % script_remote], show=True)
+    else:
+        run(["ssh", ssh, "sh %s" % script_remote], show=True)
     say("  Thanh vien phai dung %d dia chi: %s" % (len(members), ", ".join(members)))
+    say("  Gui MOT thu toi %s roi xem tung thanh vien co nhan khong -- do la"
+        " phep thu duy nhat dang tin." % address)
     say("  Don dep khi da xem xong:")
     say('      ssh %s \'"%s" delete account %s\'' % (ssh, tool, address))
     say()
