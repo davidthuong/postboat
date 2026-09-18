@@ -236,6 +236,9 @@ Ghi từng object:
 | DELETE object còn attendee (phần dọn dẹp của `pimprobe`) | Gửi "cancelled" / "declined" cho bên kia — **đừng DELETE thô** trên IceWarp |
 | PUT lại bản có `SCHEDULE-AGENT=CLIENT` **hoặc** bản đã bỏ attendee, rồi DELETE | +0 ở cả bước PUT lại lẫn bước DELETE — `pimprobe` dọn dẹp theo cách này |
 | RRULE `UNTIL=20261231T235959Z` | Server ghi lại thành `20270101T020000Z` (chuẩn hoá theo giờ DTSTART); số lần lặp không đổi |
+| `tool.exe file batch <file>` (đường dẫn tuyệt đối, file không BOM, hoặc file trần trong thư mục cài) | **Im lặng, không tạo gì** — cả ba cách |
+| `tool.exe create account nhom@dom u_type 7 u_name "..." g_listfile "C:\...\nhom@dom.txt"` gõ thẳng | "Account ... created."; `display` trả về đúng `u_type 7`, `u_name`, `g_listfile` |
+| Gửi một thư tới nhóm đó, file thành viên 3 dòng (mỗi địa chỉ một dòng, CRLF) | SMTP nhận, **cả 3 thành viên nhận thư** — đường `lists` M365/Google → IceWarp đo xong đầu đích |
 | vCard `TEL;TYPE=CELL` | Trả về hai dòng TEL giống nhau — chuẩn hoá của IceWarp, không phải nhân bản |
 
 Kết luận cho Postboat: `SCHEDULE-AGENT=CLIENT` không đủ làm mặc định vì Zimbra bỏ qua. Mặc định phải bỏ `ORGANIZER`/`ATTENDEE` khỏi sự kiện có người tham dự (giữ dưới dạng `X-POSTBOAT-*`, ghi danh sách vào `DESCRIPTION`); chỉ giữ nguyên (`keep_attendees = true`) khi đích được chứng minh không gửi — với IceWarp là **có sẵn** (tôn trọng tham số, đo 18/09), với Zimbra là lệnh `zmprov mcf` ở trên.

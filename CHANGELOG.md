@@ -29,7 +29,10 @@ Phần lớn các mục "Sửa" ở đây đến từ những cuộc migrate ch�
   u_name ... g_listfile ...` thì tạo ngay và `display` trả về đúng ba biến.
   Script `cd` vào thư mục cài (`--tooldir`, mặc định `C:\Program Files\IceWarp`
   hoặc `/opt/icewarp`) rồi sau mỗi `create` có một `display` để đọc kết quả tại
-  chỗ. `icewarp.batch` vẫn sinh để tham khảo.
+  chỗ. `icewarp.batch` vẫn sinh để tham khảo. Đo đến cùng: nhóm tạo bằng lệnh
+  đó với file thành viên "mỗi địa chỉ một dòng" **giao thư đúng cho cả 3 thành
+  viên** khi gửi một thư vào nhóm — cú pháp file thành viên không còn là suy
+  đoán.
 
 ---
 
