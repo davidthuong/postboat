@@ -742,6 +742,16 @@ Trên dashboard:
 - Form thêm mailbox, ghi thẳng vào `users.csv`; dấu ✕ ở cuối mỗi dòng để xoá
   khỏi danh sách (chỉ xoá dòng trong CSV — mail đã chuyển và log vẫn còn)
 
+Khung **Lịch & danh bạ** là ống `pim`, để riêng khỏi thanh nút ở trên vì nó
+không gọi imapsync: `Đọc thử` = `pim --dry` (đọc nguồn, đếm mục, không ghi gì),
+`Chuyển lịch & danh bạ` = `pim`. Cả hai chạy theo lựa chọn ở bảng mailbox như
+các nút thường. Khung này nói thẳng nó sẽ đọc ở đâu và ghi vào đâu; cấu hình
+chưa chạy được ống `pim` — chưa bật, hoặc nguồn/đích chưa hỗ trợ — thì hai nút
+bị khoá và **lý do hiện ngay tại chỗ**, đúng câu mà `postboat.py pim` in ra.
+Bảng bên dưới đọc `state/pim.json`: số sự kiện lịch và danh bạ **đang có ở
+đích** sau lần chạy gần nhất của từng hộp, gộp `ok` + `đã có` giống biên bản bàn
+giao — nên chạy lại lần hai vẫn ra đúng con số đó, không về 0.
+
 Khung **Công cụ & tệp** ở dưới có bốn nút làm việc trên cả cuộc migrate, không
 theo lựa chọn ở bảng trên: `Kiểm tra môi trường` (`doctor`), `Nguồn được hỗ trợ`
 (`providers`), `Xuất báo cáo` (`report --all`), và `Biên bản bàn giao`
@@ -765,9 +775,9 @@ Ba nguyên tắc an toàn của giao diện này:
   cho biết ô đó đã có mật khẩu hay chưa.
 - **Mỗi lúc chỉ một tác vụ.** Bấm nút thứ hai khi đang chạy sẽ bị từ chối, không
   có chuyện hai lệnh imapsync giẫm lên nhau.
-- **Hai nút có ghi vào IceWarp — `Chạy thật` và `Chạy tiếp` — đều hỏi lại trước
-  khi chạy**, và hộp thoại nói rõ đang áp dụng cho bao nhiêu mailbox. Các nút
-  còn lại không ghi gì.
+- **Ba nút có ghi vào hệ thống đích — `Chạy thật`, `Chạy tiếp` và `Chuyển lịch &
+  danh bạ` — đều hỏi lại trước khi chạy**, và hộp thoại nói rõ đang áp dụng cho
+  bao nhiêu mailbox. Các nút còn lại không ghi gì.
 
 Mở ra ngoài bằng `--host 0.0.0.0` thì được, nhưng server sẽ cảnh báo — đừng làm
 vậy trừ khi có tường lửa chặn sẵn.
@@ -915,6 +925,8 @@ lại một mailbox thì xoá file đó đi.
 
 `pim` là ống riêng cho lịch và danh bạ, **mặc định tắt** vì hai thứ đó không đi
 qua IMAP (vì sao: [research/calendar-contacts.md](research/calendar-contacts.md)).
+Trên [dashboard](#dashboard) nó là khung **Lịch & danh bạ**, hai nút tương ứng
+`--dry` và chạy thật.
 Bật bằng `[pim] enabled = true` khi hợp đồng có. Nguồn đọc được: IceWarp và
 Zimbra (CalDAV/CardDAV, mật khẩu hộp thư trong `users.csv`), Microsoft 365
 (Graph, cùng app Entra đã dùng cho IMAP nhưng phải thêm quyền ứng dụng

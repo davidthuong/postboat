@@ -76,7 +76,21 @@ PAGE = r"""<!doctype html>
     cao va cac cot ben trai bo trong ca mang; o man hep thi cot bi bop lai den
     muc khong doc duoc. Cho no card rieng ben duoi bang. */
  .more{font-size:11.5px;color:var(--warn);white-space:nowrap}
- #fixcount{text-transform:none;font-weight:400;color:var(--muted);margin-left:.4rem}
+ #fixcount,#pimcount{text-transform:none;font-weight:400;color:var(--muted);
+                     margin-left:.4rem}
+ /* Bang lich/danh ba chi co sau cot nen hep hon bang chinh (880px), nhung van
+    phai co min-width: bo han thi tren dien thoai cac cot bi bop den muc dia
+    chi xuong hai dong, ma dong nao co cau loi thi keo cao ca hang len trong
+    khi cot loi nam ngoai man hinh -- nguoi xem thay mot o trong cao ngoang.
+    Cho no cuon ngang nhu bang chinh. */
+ #pimtable{min-width:760px}
+ #pimnote{padding-top:.8rem}
+ #pimnote .pair{margin-top:.25rem}
+ #pimnote .pair b{color:var(--ink);font-weight:600;word-break:break-all}
+ /* Loi cua mot dong lich/danh ba la cau van, khong phai nhan -- phai cho
+    xuong dong, khac voi .more. */
+ .tip{font-size:11.5px;color:var(--err);white-space:normal;max-width:34ch;
+      margin-top:.2rem}
  .fix{padding:.7rem 1rem;border-left:3px solid var(--err);
       border-bottom:1px solid var(--line)}
  .fix:last-child{border-bottom:none}
@@ -167,6 +181,30 @@ PAGE = r"""<!doctype html>
     <div id="fixlist"></div>
   </section>
 
+  <!-- Lịch và danh bạ đi ống riêng: không qua imapsync mà đọc CalDAV/CardDAV
+       (hoặc Microsoft Graph) bên nguồn rồi PUT CalDAV/CardDAV bên đích. Để
+       chung thanh nút với "Chạy thật" ở trên thì dễ bấm nhầm, mà nhầm ở đây
+       là ghi thẳng vào lịch người ta -- nên nó có thẻ riêng. -->
+  <section class="card">
+    <h2>Lịch &amp; danh bạ <span id="pimcount"></span></h2>
+    <div class="bar" id="pimbar">
+      <button data-act="pim-dry" title="Đọc nguồn, đếm mục, không ghi gì">Đọc thử</button>
+      <button data-act="pim" class="primary">Chuyển lịch &amp; danh bạ</button>
+      <span class="scope" id="pimscope"></span>
+    </div>
+    <div class="note" id="pimnote"></div>
+    <div class="tablewrap" id="pimwrap" hidden>
+    <table id="pimtable">
+      <thead><tr>
+        <th>Nguồn</th><th>Đích</th>
+        <th class="num">Sự kiện lịch</th><th class="num">Danh bạ</th>
+        <th>Kết quả</th><th>Lúc</th>
+      </tr></thead>
+      <tbody id="pimrows"></tbody>
+    </table>
+    </div>
+  </section>
+
   <section class="card">
     <div class="job">
       <span class="dot" id="dot"></span>
@@ -238,11 +276,16 @@ function scope() {
 
 function renderScope() {
   const n = selected.size;
-  $("scope").textContent = n
+  // Cùng một lựa chọn chi phối cả hai thẻ có nút chạy theo mailbox, nên cả
+  // hai phải nói ra nó. Thẻ lịch/danh bạ nằm xa bảng chọn hơn, ai kéo thẳng
+  // xuống đó bấm mà không thấy dòng này sẽ tưởng nó chạy cho tất cả.
+  const s = n
     ? n + " mailbox được chọn"
     : (state && state.mailboxes.length
         ? "Áp dụng cho tất cả " + state.mailboxes.length + " mailbox"
         : "");
+  text("scope", s);
+  text("pimscope", s ? s + " (chọn ở bảng trên)" : "");
 }
 
 function badge(m) {
@@ -368,6 +411,56 @@ function renderFix() {
     "</div>").join("");
 }
 
+// Thẻ lịch & danh bạ. Chạy SAU renderJob(): renderJob mở khoá mọi nút
+// data-act khi job vừa xong, mà hai nút ở đây còn phải khoá tiếp nếu cấu hình
+// chưa chạy được ống PIM.
+function renderPim() {
+  const p = (state && state.pim) || {};
+  const running = !!(state && state.job && state.job.running);
+  document.querySelectorAll("#pimbar button[data-act]").forEach((b) => {
+    b.disabled = running || !p.ready;
+  });
+
+  const note = $("pimnote");
+  if (!p.ready) {
+    // Lý do lấy nguyên văn của máy chủ -- đúng câu mà `postboat.py pim` in ra,
+    // để người đọc tra trong README thấy cùng một dòng.
+    note.innerHTML =
+      '<span class="err">Chưa chạy được.</span> ' + esc(p.reason || "") +
+      (p.enabled ? "" :
+        " Bật bằng <code>[pim] enabled = true</code> rồi tải lại trang.");
+  } else {
+    // Hai đầu đặt trên hai dòng riêng chứ không nhét vào giữa câu: nhãn lấy
+    // nguyên văn của tool (không dấu, có ngoặc đơn kiểu "(mat khau hop thu)"),
+    // ghép vào văn xuôi có dấu thì đọc ra một câu gãy.
+    note.innerHTML =
+      "Không đi qua IMAP, và giữ nguyên UID nên chạy lại không tạo bản trùng." +
+      '<div class="pair">Đọc từ <b>' + esc(p.source) + "</b></div>" +
+      '<div class="pair">Ghi vào <b>' + esc(p.dest) + "</b></div>";
+  }
+
+  const rows = (state.mailboxes || []).filter((m) => m.pim);
+  $("pimwrap").hidden = !rows.length;
+  text("pimcount", rows.length
+    ? "(" + rows.length + " mailbox đã chuyển)"
+    : (p.ready ? "(chưa chạy lần nào)" : ""));
+  if (!rows.length) return;
+
+  $("pimrows").innerHTML = rows.map((m) => {
+    const q = m.pim;
+    let verdict;
+    if (q.error)     verdict = '<span class="badge b-err">không chuyển được</span>';
+    else if (q.loi)  verdict = '<span class="badge b-err">thiếu ' + q.loi + " mục</span>";
+    else             verdict = '<span class="badge b-ok">xong</span>';
+    return "<tr><td>" + esc(m.src_user) + "</td><td>" + esc(m.dst_user) + "</td>" +
+      '<td class="num">' + q.calendar + "</td>" +
+      '<td class="num">' + q.contacts + "</td>" +
+      "<td>" + verdict +
+      (q.error ? '<div class="tip">' + esc(q.error) + "</div>" : "") + "</td>" +
+      "<td>" + esc(q.at) + "</td></tr>";
+  }).join("");
+}
+
 function renderJob() {
   const j = state.job, dot = $("dot"), log = $("log");
   dot.className = "dot";
@@ -437,7 +530,8 @@ async function refresh() {
     text("usersfile", state.users_file);
     text("logdir", state.logdir);
     renderLabels();
-    renderRows(); renderFix(); renderScope(); renderJob(); renderFiles();
+    renderRows(); renderFix(); renderScope(); renderJob(); renderPim();
+    renderFiles();
   } catch (e) {
     console.error("refresh hong:", e);
   }
@@ -487,11 +581,17 @@ document.querySelectorAll("button[data-act]").forEach((btn) => {
     // cáo đã lọc theo lựa chọn đó, trong khi nó không hề.
     const only = btn.dataset.global ? [] : scope();
     const who = only.length ? only.length + " mailbox đã chọn" : "TẤT CẢ mailbox";
-    if (act === "sync" || act === "resume") {
+    if (act === "sync" || act === "resume" || act === "pim") {
+      // "pim" ghi thẳng vào lịch và danh bạ bên đích, không phải vào mail --
+      // hỏng ở đây là hỏng thứ người ta nhìn hằng ngày, nên cũng phải hỏi
+      // lại như "Chạy thật".
       const msg = act === "resume"
         ? "Chạy tiếp cho " + who + "?\n\nMail sẽ được ghi vào "
           + state.dest_provider
           + ". Mailbox đã chạy xong trước đó sẽ bị bỏ qua."
+        : act === "pim"
+        ? "Chuyển lịch & danh bạ cho " + who + "?\n\nCác mục sẽ được ghi vào "
+          + state.dest_provider + " bằng CalDAV/CardDAV. Mail không đụng tới."
         : "Chạy thật cho " + who + "?\n\nMail sẽ được ghi vào "
           + state.dest_provider + ".";
       if (!confirm(msg)) return;

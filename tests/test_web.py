@@ -884,6 +884,187 @@ class TestSideNamesAreAccented(unittest.TestCase):
         self.assertIn('dich: "đích"', PAGE)
 
 
+CONFIG_PIM = """[source]
+provider = zimbra
+host = mail.cu.vn
+port = 993
+ssl = true
+
+[dest]
+provider = icewarp
+host = mail.moi.vn
+port = 993
+ssl = true
+
+[sync]
+workers = 2
+
+[paths]
+imapsync = {imapsync}
+logdir = logs
+statedir = state
+
+[pim]
+enabled = true
+"""
+
+
+class TestPimTat(WebTestCase):
+    """Config mac dinh khong co [pim]. Trang phai NOI RA vi sao, khong duoc
+    chi de hai cai nut xam khong ai biet tai sao."""
+
+    def test_bao_chua_san_sang_kem_ly_do(self):
+        p = self.state()["pim"]
+        self.assertFalse(p["enabled"])
+        self.assertFalse(p["ready"])
+        self.assertIn("enabled = false", p["reason"])
+
+    def test_chua_chay_thi_khong_co_so_lieu_nao(self):
+        self.assertIsNone(self.state()["mailboxes"][0]["pim"])
+
+    def test_bam_nut_van_khong_cham_mang(self):
+        """Nut bi khoa o trinh duyet, nhung API phai tu giu duoc minh: ai goi
+        thang /api/run thi cmd_pim dung lai o cau 'dang tat' chu khong di mo
+        ket noi CalDAV nao."""
+        self.post("/api/run", {"action": "pim", "only": []})
+        for _ in range(200):
+            job = self.state()["job"]
+            if job and not job["running"]:
+                break
+            time.sleep(0.05)
+        self.assertEqual(job["exit_code"], 2)
+        self.assertIn("dang tat", "\n".join(job["lines"]))
+
+
+class TestPimNguonKhongHoTro(WebTestCase):
+    """Bat [pim] tren mot cuoc migrate ma nguon la Gmail: ong PIM van khong
+    chay duoc, va ly do phai la CAU CUA pim chu khong phai cau trang tu che."""
+
+    config_text = CONFIG.replace("[sync]", "[pim]\nenabled = true\n\n[sync]")
+
+    def test_ly_do_lay_nguyen_van_cua_pim(self):
+        p = self.state()["pim"]
+        self.assertTrue(p["enabled"])
+        self.assertFalse(p["ready"])
+        self.assertIn("gmail", p["reason"])
+
+
+class TestPimSanSang(WebTestCase):
+    """Zimbra -> IceWarp: ca hai dau deu co CalDAV/CardDAV."""
+
+    config_text = CONFIG_PIM
+
+    def test_noi_ro_doc_o_dau_ghi_vao_dau(self):
+        p = self.state()["pim"]
+        self.assertTrue(p["ready"])
+        self.assertEqual(p["reason"], "")
+        self.assertIn("mail.cu.vn", p["source"])
+        self.assertIn("mail.moi.vn", p["dest"])
+
+    def test_khong_lo_mat_khau_trong_nhan(self):
+        raw = self.get("/api/state").read().decode("utf-8")
+        for secret in ("MatKhau1", "MatKhau2", "aaaa bbbb cccc dddd"):
+            self.assertNotIn(secret, raw)
+
+
+class TestPimKetQuaLenBang(WebTestCase):
+    """state/pim.json la thu `postboat.py pim` de lai; bang tren trang doc
+    dung file do, va gop ok + skip giong bien ban ban giao -- con so nguoi ta
+    muon thay la 'o dich dang co bao nhieu muc'."""
+
+    config_text = CONFIG_PIM
+
+    def setUp(self):
+        super(TestPimKetQuaLenBang, self).setUp()
+        statedir = self.tmp / "state"
+        statedir.mkdir(parents=True, exist_ok=True)
+        (statedir / "pim.json").write_text(json.dumps({
+            "an@cu.com": {
+                "src_user": "an@cu.com", "dst_user": "an@moi.vn",
+                "calendar_ok": 40, "calendar_skip": 2, "calendar_err": 0,
+                "contacts_ok": 10, "contacts_skip": 1, "contacts_err": 3,
+                "error": "", "at": "2026-09-19 10:30",
+            },
+            "binh@cu.com": {
+                "src_user": "binh@cu.com", "dst_user": "binh@moi.vn",
+                "calendar_ok": 0, "contacts_ok": 0,
+                "error": "401 Unauthorized", "at": "2026-09-19 10:31",
+            },
+        }), encoding="utf-8")
+
+    def rows(self):
+        return {m["src_user"]: m["pim"] for m in self.state()["mailboxes"]}
+
+    def test_gop_ok_va_skip(self):
+        q = self.rows()["an@cu.com"]
+        self.assertEqual(q["calendar"], 42)
+        self.assertEqual(q["contacts"], 11)
+
+    def test_dem_rieng_so_muc_khong_ghi_duoc(self):
+        self.assertEqual(self.rows()["an@cu.com"]["loi"], 3)
+
+    def test_mailbox_hong_mang_theo_cau_loi(self):
+        q = self.rows()["binh@cu.com"]
+        self.assertEqual(q["error"], "401 Unauthorized")
+        self.assertEqual(q["calendar"], 0)
+
+    def test_mailbox_chua_chay_van_la_None(self):
+        self.assertIsNone(self.rows()["fail.chi@cu.com"])
+
+    def test_file_state_hong_khong_lam_chet_dashboard(self):
+        """Ai do sua tay pim.json thanh chu: bang van len, chi la so ve 0.
+        Mot o hien sai con hon ca dashboard tra 500."""
+        (self.tmp / "state" / "pim.json").write_text(json.dumps({
+            "an@cu.com": {"calendar_ok": "nhieu", "contacts_ok": None},
+        }), encoding="utf-8")
+        self.assertEqual(self.rows()["an@cu.com"]["calendar"], 0)
+
+
+class TestPimTrenTrang(unittest.TestCase):
+    """Ba noi phai khop nhau: ACTIONS, _ACTION_FN va nut trong HTML."""
+
+    def args(self, action):
+        return web._make_args(action, ["an@cu.com"], Path("users.csv"))
+
+    def test_doc_thu_bat_co_dry(self):
+        a = self.args("pim-dry")
+        self.assertTrue(a.dry)
+        self.assertFalse(a.resume)
+        self.assertFalse(a.folders_only)
+
+    def test_chuyen_that_khong_dry(self):
+        self.assertFalse(self.args("pim").dry)
+
+    def test_pim_chay_theo_lua_chon_chu_khong_toan_cuc(self):
+        """Chon mot hop roi bam 'Chuyen lich & danh ba' ma no chay ca 200 hop
+        thi la ghi vao lich cua 199 nguoi khong ai yeu cau."""
+        self.assertEqual(self.args("pim").only, ["an@cu.com"])
+        self.assertNotIn("pim", web.GLOBAL_ACTIONS)
+        self.assertNotIn("pim-dry", web.GLOBAL_ACTIONS)
+
+    def test_ca_hai_nut_deu_co_tren_trang(self):
+        from postboat.web_ui import PAGE
+        self.assertIn('data-act="pim-dry"', PAGE)
+        self.assertIn('data-act="pim"', PAGE)
+
+    def test_chuyen_that_phai_hoi_lai(self):
+        """Nut nay ghi thang vao lich va danh ba ben dich."""
+        from postboat.web_ui import PAGE
+        body = PAGE[PAGE.index('const act = btn.dataset.act;'):]
+        body = body[:body.index("document.querySelectorAll")]
+        self.assertIn('act === "pim"', body)
+        self.assertIn("confirm(msg)", body)
+
+    def test_renderPim_chay_sau_renderJob(self):
+        """renderJob mo khoa MOI nut data-act khi job vua xong. Chay truoc no
+        thi hai cai nut PIM duoc mo ra du cau hinh chua chay duoc."""
+        from postboat.web_ui import PAGE
+        line = [l for l in PAGE.splitlines()
+                if "renderJob()" in l and "renderPim()" in l]
+        self.assertTrue(line, "renderPim() khong duoc goi trong refresh()")
+        self.assertLess(line[0].index("renderJob()"), line[0].index("renderPim()"))
+
+
 def _free_port():
     import socket
     s = socket.socket()

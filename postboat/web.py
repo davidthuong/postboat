@@ -29,7 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
-from . import __version__, cli, report
+from . import __version__, cli, pim, report
 from .config import Config, load_config
 from .hints import diagnose
 from . import users as users_module
@@ -48,6 +48,11 @@ ACTIONS = {
     "sync": "Chay that",
     "resume": "Chay tiep (bo qua hop da xong)",
     "verify": "Doi chieu ngay thang",
+    # Ong rieng: khong goi imapsync, doc CalDAV/CardDAV hoac Graph ben nguon
+    # roi PUT CalDAV/CardDAV ben dich. Hai nut vi "doc thu" va "ghi that" o
+    # day khac nhau nhieu hon o mail -- ghi that la PUT len lich nguoi ta.
+    "pim-dry": "Lich/danh ba: doc thu",
+    "pim": "Lich/danh ba: chuyen that",
     "doctor": "Kiem tra moi truong",
     "providers": "Nguon duoc ho tro",
     "report": "Xuat bao cao",
@@ -177,6 +182,9 @@ def _make_args(action: str, only: List[str], users_path: Path,
                  users=str(users_path))
     if action == "dry":
         args.dry = True
+    elif action == "pim-dry":
+        # cmd_pim doc cung mot co --dry: doc nguon, dem muc, khong PUT.
+        args.dry = True
     elif action == "folders":
         args.folders_only = True
     elif action == "sizes":
@@ -208,6 +216,8 @@ _ACTION_FN: Dict[str, Callable] = {
     "sync": lambda a, c: cli.cmd_sync(a, c),
     "resume": lambda a, c: cli.cmd_sync(a, c),
     "verify": lambda a, c: cli.cmd_verify(a, c),
+    "pim-dry": lambda a, c: cli.cmd_pim(a, c),
+    "pim": lambda a, c: cli.cmd_pim(a, c),
     "doctor": lambda a, c: cli.cmd_doctor(a, c),
     "providers": lambda a, c: cli.cmd_providers(a, c),
     "report": lambda a, c: cli.cmd_report(a, c),
@@ -238,6 +248,7 @@ def _mailboxes(cfg: Config, users_path: Path) -> List[Dict]:
     latest = _latest_rows(cfg)
     done_dir = Path(cfg.paths.statedir)
     preflight = report.load_preflight(done_dir)
+    pim_rows = pim.load_results(done_dir)
     rows = []
     for u in users:
         row = latest.get(u.src_user, {})
@@ -269,8 +280,64 @@ def _mailboxes(cfg: Config, users_path: Path) -> List[Dict]:
             # "nguon hay dich" la cau dau tien phai tra loi, va imapsync lan
             # tool deu phan biet duoc nen dashboard khong duoc lam mo di.
             "preflight": _preflight_row(pf, cfg) if pf else None,
+            # None neu mailbox nay chua di ong PIM lan nao. Bang lich/danh ba
+            # tren trang chi liet ke nhung dong co du lieu -- hop dong khong
+            # co lich thi ca muc do khong hien gi.
+            "pim": _pim_cell(pim_rows.get(u.src_user)),
         })
     return rows
+
+
+def _pim_cell(row: Optional[Dict]) -> Optional[Dict]:
+    """Ket qua lich/danh ba gan nhat cua mot mailbox, gon lai cho trinh duyet.
+
+    Gop ok + skip lai giong bien ban ban giao (_pim_section): con so nguoi ta
+    muon thay la "o dich dang co bao nhieu muc", khong phai "lan chay nay ghi
+    them bao nhieu" -- chay lan hai thi ok ve 0 ma lich van du.
+    """
+    if not row:
+        return None
+
+    def num(key: str) -> int:
+        try:
+            return int(row.get(key) or 0)
+        except (TypeError, ValueError):   # file state bi sua tay
+            return 0
+
+    return {
+        "calendar": num("calendar_ok") + num("calendar_skip"),
+        "contacts": num("contacts_ok") + num("contacts_skip"),
+        "loi": num("calendar_err") + num("contacts_err"),
+        "error": str(row.get("error") or ""),
+        "at": str(row.get("at") or ""),
+    }
+
+
+def _pim_status(cfg: Config) -> Dict:
+    """Ong PIM chay duoc chua, va neu chua thi vi sao.
+
+    Hoi dung ba cau cmd_pim hoi truoc khi lam gi: bat chua, nguon doc duoc
+    chua, dich ghi duoc chua. Cau tra loi "chua" lay nguyen van cua pim de
+    trang va CLI khong noi hai kieu khac nhau ve cung mot cau hinh.
+
+    Co 'ready' de trang khoa hai cai nut lai: bam mot nut biet truoc la se ra
+    loi thi chi lam nguoi ta tuong tool hong.
+    """
+    if not cfg.pim.enabled:
+        return {
+            "enabled": False, "ready": False, "source": "", "dest": "",
+            # Ket thuc bang dau cham: trang ghep no vao giua hai cau khac.
+            "reason": "[pim] enabled = false trong %s." % cfg.path,
+        }
+    if not pim.source_kind(cfg):
+        return {"enabled": True, "ready": False, "source": "", "dest": "",
+                "reason": pim.unsupported_reason(cfg)}
+    if not pim.dest_kind(cfg):
+        return {"enabled": True, "ready": False,
+                "source": pim.source_label(cfg), "dest": "",
+                "reason": pim.unsupported_dest_reason(cfg)}
+    return {"enabled": True, "ready": True, "reason": "",
+            "source": pim.source_label(cfg), "dest": pim.dest_label(cfg)}
 
 
 def _preflight_row(pf: Dict, cfg: Config) -> Dict:
@@ -536,6 +603,7 @@ class Handler(BaseHTTPRequestHandler):
                 "actions": ACTIONS,
                 "global_actions": sorted(GLOBAL_ACTIONS),
                 "logdir": str(cfg.paths.logdir),
+                "pim": _pim_status(cfg),
                 "mailboxes": _mailboxes(cfg, self.users_path),
                 "files": _files(cfg),
                 "job": self.manager.job.as_dict() if self.manager.job else None,

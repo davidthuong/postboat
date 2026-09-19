@@ -9,6 +9,30 @@ Phần lớn các mục "Sửa" ở đây đến từ những cuộc migrate ch�
 
 ---
 
+## 19/09/2026 — Lịch và danh bạ lên dashboard
+
+### Thêm
+
+- **Khung "Lịch & danh bạ" trên dashboard** — ống `pim` trước đây chỉ gọi được
+  từ dòng lệnh, nên ai mở dashboard ra làm việc thì không có cách nào biết nó
+  tồn tại. Giờ có thẻ riêng với hai nút `Đọc thử` (`pim --dry`) và `Chuyển lịch
+  & danh bạ` (`pim`), chạy theo lựa chọn ở bảng mailbox như các nút thường. Để
+  riêng khỏi thanh nút ở trên vì nó không gọi imapsync: ghi nhầm ở đây là ghi
+  thẳng vào lịch người ta, nên nút chạy thật hỏi lại trước — thành ba nút có
+  hỏi, cùng `Chạy thật` và `Chạy tiếp`.
+- **Cấu hình chưa chạy được thì nói ra ngay tại chỗ.** `/api/state` trả về
+  `pim.ready` cùng lý do lấy **nguyên văn** của `postboat.py pim` (chưa bật,
+  nguồn chưa hỗ trợ, hay đích chưa ghi được), trang khoá hai nút và in lý do
+  đó. Hai cửa vào không còn nói hai kiểu khác nhau về cùng một `config.ini`.
+  Ai gọi thẳng `/api/run` thì `cmd_pim` vẫn tự dừng ở câu đó, không mở kết nối
+  CalDAV nào.
+- **Bảng kết quả theo từng hộp**, đọc `state/pim.json` — file mà `pim` để lại
+  cho `handover`. Số hiện ra là số mục **đang có ở đích**, gộp `ok` + `đã có`
+  giống biên bản bàn giao, nên chạy lại lần hai không làm cột về 0. Hộp nào
+  hỏng thì mang theo câu lỗi.
+
+---
+
 ## 18/09/2026 — Đo trên IceWarp thật
 
 ### Đổi
