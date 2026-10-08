@@ -204,7 +204,7 @@ Ghi từng object:
 
 1. `PROPFIND` để tìm collection Calendar / Contacts.
 2. Tách ICS nguồn thành **một resource / UID** (master + `RECURRENCE-ID` đi cùng).
-3. `PUT` `text/calendar` với `If-None-Match: *`. Giữ UID gốc để chạy lại không nhân bản (`no-uid-conflict` trong RFC 4791).
+3. `PUT` `text/calendar` với `If-None-Match: *`. Giữ UID gốc để chạy lại không nhân bản (`no-uid-conflict` trong RFC 4791). Chỉ 409 **kèm** phần tử `no-uid-conflict` mới là "đã có"; 409 trơn là collection cha không tồn tại ([RFC 4918 §9.7.1](https://www.rfc-editor.org/rfc/rfc4918#section-9.7.1)).
 4. `PUT` `text/vcard` từng contact.
 
 Đường phụ trên chính server IceWarp: `importcontacts.php` (vCard hàng loạt, [Contacts Migration Script](https://docs.icewarp.com/Content/IceWarp-Server/Administration-Nodes/System%20Node/Tools/Server%20Migration/Contacts%20Migration%20Script.htm)) và GroupWare API `AddvCalendar()` (nhiều VEVENT một lần). Chỉ dùng khi agent chạy **trên** máy IceWarp; từ VPS Postboat thì CalDAV PUT là đường đúng.
@@ -222,6 +222,7 @@ Ghi từng object:
 | PUT đè lên UID đã có với `If-None-Match: *` | Trả 2xx chứ không 412 — "đã có" phải hỏi bằng PROPFIND trước |
 | Tên file `{UID}.ics` với `@` trong UID, RRULE `UNTIL` dạng UTC, vCard 3.0 | Nhận nguyên vẹn; href trả về mã hoá `%40` cho `@` |
 | Cùng phép `If-None-Match: *` nhưng trên **CardDAV** (18/09, `testrig/pimprobe.py`) | Trả **412** — Zimbra chỉ phớt lờ ở đường lịch. "Server này có tôn trọng `If-None-Match` không" là câu hỏi theo từng collection, không phải theo server |
+| Collection gõ sai tên (`/Calender/`, `/Contact/`, 08/10/2026) | PROPFIND **404**; PUT vào bên trong cũng **404**, không phải 409 như RFC 4918. Trước bản sửa 08/10, phía nguồn đọc ra 0 mục và báo "Xong", phía đích báo lỗi từng mục; giờ cả hai dừng mailbox bằng một câu có URL và dòng config cần kiểm. Server theo đúng RFC (trả 409) thì trước đây còn tệ hơn: 409 bị đếm là "đã có" |
 
 **Đo thật 18/09/2026, IceWarp trên Windows (máy test của David), IceWarp → IceWarp qua WebDAV:**
 

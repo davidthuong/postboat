@@ -322,6 +322,13 @@ TEL:0901234567
 END:VCARD
 """
 
+# Than 409 cua server CalDAV khi UID da nam duoi mot ten file khac.
+NO_UID_CONFLICT = (
+    b'<?xml version="1.0" encoding="utf-8"?>'
+    b'<D:error xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+    b"<C:no-uid-conflict><D:href>/webdav/an@moi.vn/Calendar/khac.ics</D:href>"
+    b"</C:no-uid-conflict></D:error>")
+
 
 class TestIcsHelpers(unittest.TestCase):
     def test_uid_from_ics(self):
@@ -707,6 +714,11 @@ class FakeDavHandler(http.server.BaseHTTPRequestHandler):
     # Zimbra 8.8 that: PUT de len su kien da co van tra 2xx du co
     # If-None-Match: *. Tat co nay de gia lap.
     honor_if_none_match = True
+    # Collection khong ton tai (duong dan da unquote, co / cuoi): PROPFIND 404,
+    # PUT vao trong 409 -- dung RFC 4918 9.7.1, nhu khi go sai ten Calendar.
+    missing = None   # type: set
+    # (ma, than) tra cho moi PUT, de gia lap 409 no-uid-conflict.
+    put_reply = None
 
     def log_message(self, fmt, *args):
         return
@@ -746,6 +758,9 @@ class FakeDavHandler(http.server.BaseHTTPRequestHandler):
         path = self._path()
         if not path.endswith("/"):
             path += "/"
+        if path in self.missing:
+            self._send(404, b"no such collection")
+            return
         items = []
         for href, (_ctype, _data) in sorted(self.store.items()):
             if href.startswith(path) and href != path:
@@ -785,6 +800,12 @@ class FakeDavHandler(http.server.BaseHTTPRequestHandler):
             self._send(401, b"auth")
             return
         path = self._path()
+        if path.rsplit("/", 1)[0] + "/" in self.missing:
+            self._send(409, b"parent collection does not exist")
+            return
+        if self.put_reply:
+            self._send(*self.put_reply)
+            return
         match = self.headers.get("If-None-Match")
         if match == "*" and path in self.store and self.honor_if_none_match:
             self._send(412, b"exists")
@@ -801,6 +822,8 @@ def start_fake_dav(store, user="an@cu.com", password="srcpass"):
     FakeDavHandler.user = user
     FakeDavHandler.password = password
     FakeDavHandler.honor_if_none_match = True
+    FakeDavHandler.missing = set()
+    FakeDavHandler.put_reply = None
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), FakeDavHandler)
     thread = threading.Thread(target=httpd.serve_forever)
     thread.daemon = True
@@ -828,7 +851,7 @@ class TestDavCopy(unittest.TestCase):
         self.addCleanup(self.httpd.server_close)
         self.addCleanup(self.httpd.shutdown)
         port = self.httpd.server_address[1]
-        base = "http://127.0.0.1:%d/webdav" % port
+        base = self.base = "http://127.0.0.1:%d/webdav" % port
         self.cfg = make_cfg(PimConf(
             enabled=True,
             webdav_base=base,
@@ -905,6 +928,53 @@ class TestDavCopy(unittest.TestCase):
         self.assertIn("401", result.error)
         self.assertIn("mat khau", result.error)
         self.assertTrue(result.failed)
+
+    def test_missing_dest_collection_is_an_error_not_already_there(self):
+        """Go sai ten collection dich: PROPFIND 404, PUT 409. Truoc day 409 bi
+        dem la 'da co', va bien ban ghi Xong trong khi dich khong co gi."""
+        FakeDavHandler.missing.add("/webdav/an@moi.vn/Calendar/")
+        result = pim.run_user(self.cfg, self.src, dry=False)
+        self.assertTrue(result.failed)
+        self.assertIn("an@moi.vn/Calendar/", result.error)
+        self.assertIn("webdav_base", result.error)
+        self.assertEqual(result.calendar_skip, 0)
+        self.assertEqual(result.calendar_ok, 0)
+        self.assertNotIn("/webdav/an@moi.vn/Calendar/hop-tuan-1.ics",
+                         FakeDavHandler.puts)
+
+    def test_missing_dest_contacts_keeps_calendar_counts(self):
+        FakeDavHandler.missing.add("/webdav/an@moi.vn/Contacts/")
+        result = pim.run_user(self.cfg, self.src, dry=False)
+        self.assertEqual(result.calendar_ok, 1)
+        self.assertEqual(result.contacts_skip, 0)
+        self.assertTrue(result.failed)
+        self.assertIn("an@moi.vn/Contacts/", result.error)
+
+    def test_missing_source_collection_is_an_error_even_in_dry(self):
+        """Sai ten phia nguon thi truoc day doc ra 0 muc va bao Xong."""
+        FakeDavHandler.missing.add("/webdav/an@cu.com/Calendar/")
+        result = pim.run_user(self.cfg, self.src, dry=True)
+        self.assertTrue(result.failed)
+        self.assertIn("nguon", result.error)
+        self.assertIn("an@cu.com/Calendar/", result.error)
+        self.assertIn("source_webdav_base", result.error)
+
+    def test_put_409_alone_is_an_error(self):
+        from postboat.pim_dav import DavClient, DavError
+        FakeDavHandler.put_reply = (409, b"conflict")
+        client = DavClient("an@moi.vn", "srcpass")
+        with self.assertRaises(DavError) as ctx:
+            client.put(self.base + "/an@moi.vn/Calendar/x.ics", ICS_MEETING,
+                       "text/calendar")
+        self.assertEqual(ctx.exception.status, 409)
+
+    def test_put_409_no_uid_conflict_is_already_there(self):
+        """RFC 4791 5.3.2.1: cung UID duoi ten file khac. Day moi la 'da co'."""
+        FakeDavHandler.put_reply = (409, NO_UID_CONFLICT)
+        result = pim.run_user(self.cfg, self.src, dry=False)
+        self.assertEqual(result.error, "")
+        self.assertEqual(result.calendar_skip, 1)
+        self.assertEqual(result.calendar_err, 0)
 
 
 class TestState(unittest.TestCase):
@@ -1011,6 +1081,15 @@ class TestCliDavCopy(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn("LOI", out)
         self.assertIn("401", out)
+
+    def test_wrong_dest_collection_gives_exit_1_and_error_in_state(self):
+        FakeDavHandler.missing.add("/webdav/an@moi.vn/Calendar/")
+        code, out = self.run_cli("pim")
+        self.assertEqual(code, 1, out)
+        self.assertIn("khong co collection", out)
+        data = pim.load_results(self.tmp / "state")
+        self.assertIn("an@moi.vn/Calendar/", data["an@cu.com"]["error"])
+        self.assertEqual(data["an@cu.com"]["calendar_skip"], 0)
 
 
 if __name__ == "__main__":

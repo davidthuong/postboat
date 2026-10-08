@@ -9,6 +9,22 @@ Phần lớn các mục "Sửa" ở đây đến từ những cuộc migrate ch�
 
 ---
 
+## 08/10/2026 — Sửa sau review ống lịch và danh bạ
+
+### Sửa
+
+- **Collection lịch/danh bạ không tồn tại giờ là lỗi của mailbox, không còn
+  "Xong".** Gõ sai `[pim] calendar`/`contacts` hay `webdav_base` trước đây cho
+  ra biên bản nói sai: phía nguồn đọc ra 0 mục và báo xong; phía đích, với
+  server theo đúng RFC 4918 (PUT vào collection không có trả 409), mọi mục bị
+  đếm là "đã có". Giờ PROPFIND 404 dừng mailbox đó bằng một câu nói rõ phía
+  nào, URL nào và dòng config nào cần kiểm; 409 chỉ là "đã có" khi server kèm
+  `no-uid-conflict` (cùng UID dưới tên file khác). Đo trên Zimbra 8.8 lab:
+  collection sai tên trả 404 cho cả PROPFIND lẫn PUT; chạy lại với cấu hình
+  đúng vẫn "0 ghi, 10 đã có".
+
+---
+
 ## 19/09/2026 — Lịch và danh bạ lên dashboard
 
 ### Thêm

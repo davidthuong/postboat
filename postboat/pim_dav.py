@@ -257,7 +257,10 @@ class DavClient:
             "PROPFIND", url, body,
             {"Content-Type": "application/xml; charset=utf-8", "Depth": "1"})
         if status == 404:
-            return []
+            # Khong phai "collection rong": thuong la go sai ten Calendar/
+            # Contacts hay webdav_base. Tra [] o day thi nguon doc ra 0 muc
+            # va bien ban ghi Xong.
+            raise DavError("khong co collection %s (PROPFIND 404)" % url, 404)
         if status not in (207, 200):
             raise DavError("PROPFIND %s -> HTTP %s" % (url, status), status)
         return _hrefs_from_multistatus(url, data)
@@ -270,12 +273,21 @@ class DavClient:
 
     def put(self, url: str, body: str, content_type: str) -> str:
         """'created' hoac 'exists'. If-None-Match: * la cach RFC 4791 giu cho
-        chay lai khong nhan ban: cung UID thi server tra 412, ta dem la da co."""
-        status, _data = self.request(
+        chay lai khong nhan ban: cung ten file thi server tra 412, ta dem la
+        da co.
+
+        409 chi la "da co" khi server noi ro no-uid-conflict (RFC 4791
+        5.3.2.1: cung UID duoi ten file khac). 409 tron la collection cha
+        khong ton tai (RFC 4918 9.7.1) -- dem no la da co thi bien ban ghi
+        Xong trong khi dich khong co gi.
+        """
+        status, data = self.request(
             "PUT", url, body.encode("utf-8"),
             {"Content-Type": content_type + "; charset=utf-8",
              "If-None-Match": "*"})
-        if status in (412, 409):
+        if status == 412:
+            return "exists"
+        if status == 409 and b"no-uid-conflict" in data:
             return "exists"
         if status in (200, 201, 204):
             return "created"

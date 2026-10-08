@@ -242,10 +242,23 @@ def _dav_client(mailbox: str, password: str, cfg: Config, side: str) -> DavClien
         tls_verify=server.tls_verify)
 
 
+def _no_collection(exc: DavError, side: str, key: str, base_key: str) -> DavError:
+    """PROPFIND 404 -> mot cau noi phia nao va phai kiem dong nao trong config.
+    `key` la ten khoa [pim] (calendar/contacts), trung voi kind/field_name."""
+    return DavError("%s %s -- kiem [pim] %s va %s trong config.ini"
+                    % (side, exc, key, base_key), exc.status)
+
+
 def _read_dav_collection(client: DavClient, url: str, kind: str,
                          keep_attendees: bool = False) -> List[tuple]:
     items: List[tuple] = []
-    for href in client.list_hrefs(url):
+    try:
+        hrefs = client.list_hrefs(url)
+    except DavError as exc:
+        if exc.status == 404:
+            raise _no_collection(exc, "nguon", kind, "source_webdav_base")
+        raise
+    for href in hrefs:
         body = client.get(href)
         if not looks_like(body, kind):
             # Trang HTML hay object khac loai: bo, khong dem la loi. Neu dem
@@ -303,10 +316,16 @@ def _put_items(client: DavClient, collection_url: str, items: List[tuple],
     # "Da co" phai hoi truoc bang PROPFIND, khong tin ma tra ve cua PUT: Zimbra
     # 8.8 tra 2xx cho PUT de len su kien da co du gui If-None-Match: * (do that
     # 17/09 tren lab) -- khong nhan ban vi cung ten file, nhung dem sai. Van giu
-    # If-None-Match cho server tuan RFC, va 409 (no-uid-conflict) cung la da co.
+    # If-None-Match cho server tuan RFC, va 409 no-uid-conflict cung la da co.
     try:
         existing = existing_names(client, base)
-    except DavError:
+    except DavError as exc:
+        if exc.status == 404:
+            # Collection khong co thi moi PUT deu hong. Server theo RFC 4918
+            # tra 409 cho PUT do, truoc day bi dem la "da co" va bien ban ghi
+            # Xong ma dich trong (Zimbra 8.8 tra 404, do 08/10 tren lab).
+            raise _no_collection(exc, "dich", field_name, "webdav_base")
+        # Lien ke khong duoc vi ly do khac: trong vao If-None-Match.
         existing = set()
     for uid, body, ctype in items:
         name = filename_for(uid, ext)
