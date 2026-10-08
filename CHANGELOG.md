@@ -22,6 +22,14 @@ Phần lớn các mục "Sửa" ở đây đến từ những cuộc migrate ch�
   `no-uid-conflict` (cùng UID dưới tên file khác). Đo trên Zimbra 8.8 lab:
   collection sai tên trả 404 cho cả PROPFIND lẫn PUT; chạy lại với cấu hình
   đúng vẫn "0 ghi, 10 đã có".
+- **Một hộp M365 rớt mạng không còn kéo sập cả lượt `pim`.** urllib chỉ bọc
+  lỗi lúc gửi request; timeout lúc chờ Graph trả lời, kết nối bị reset hay
+  đóng giữa chừng thì lọt ra thành traceback, các hộp sau không chạy và
+  `state/pim.json` không được ghi, nên biên bản mất luôn kết quả của các hộp đã
+  xong. Giờ Graph đứt kết nối thì thử lại như khi bị throttle (tối đa 3 lần),
+  quá số đó hoặc trả về thứ không phải JSON thì thành lỗi của riêng hộp đó. Lỗi
+  bất ngờ khác trong một hộp cũng chỉ hỏng hộp đó: các hộp sau vẫn chạy và
+  state vẫn ghi.
 
 ---
 

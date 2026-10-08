@@ -7,12 +7,14 @@ nen chay lai khong nhan ban; ket qua that ghi state/pim.json cho handover.
 """
 
 import base64
+import http.client
 import http.server
 import io
 import json
 import os
 import re
 import shutil
+import socket
 import sys
 import tempfile
 import textwrap
@@ -662,6 +664,94 @@ class TestGraphRoles(unittest.TestCase):
         self.assertEqual(seen, [pim_graph.GRAPH_SCOPE])
 
 
+class _GraphReply:
+    """Thay cho tra loi cua urlopen: context manager co read()."""
+
+    def __init__(self, body):
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self):
+        return self.body
+
+
+class TestGraphNetwork(unittest.TestCase):
+    """urllib chi boc URLError cho loi luc GUI request. Loi luc cho tra loi
+    (timeout, reset, RemoteDisconnected) va luc doc than thi lot ra tran --
+    truoc day chung keo sap ca lan chay `pim`, state/pim.json khong duoc ghi."""
+
+    URL = "https://graph.microsoft.com/v1.0/users/an%40cu.com/calendars"
+    DROPS = (socket.timeout("timed out"),
+             ConnectionResetError(104, "Connection reset by peer"),
+             http.client.RemoteDisconnected("Remote end closed connection"),
+             http.client.IncompleteRead(b"{"))
+
+    def setUp(self):
+        from postboat import pim_graph
+        self.pim_graph = pim_graph
+        patcher = mock.patch("postboat.pim_graph.time.sleep")
+        self.sleep = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_dropped_reply_is_retried(self):
+        for drop in self.DROPS:
+            with self.subTest(drop=type(drop).__name__):
+                replies = [drop, _GraphReply(b'{"value": [1]}')]
+                with mock.patch("urllib.request.urlopen", side_effect=replies):
+                    data = self.pim_graph._get(self.URL, "tok", 30)
+                self.assertEqual(data, {"value": [1]})
+
+    def test_dropped_every_time_is_an_oauth_error(self):
+        for drop in self.DROPS:
+            with self.subTest(drop=type(drop).__name__):
+                with mock.patch("urllib.request.urlopen",
+                                side_effect=drop) as urlopen:
+                    with self.assertRaises(OAuthError) as ctx:
+                        self.pim_graph._get(self.URL, "tok", 30)
+                self.assertEqual(urlopen.call_count, self.pim_graph._RETRIES + 1)
+                self.assertIn("Graph", str(ctx.exception))
+                self.assertIn(self.URL, str(ctx.exception))
+
+    def test_reply_that_is_not_json_is_an_oauth_error(self):
+        with mock.patch("urllib.request.urlopen",
+                        return_value=_GraphReply(b"<html>bao tri</html>")):
+            with self.assertRaises(OAuthError) as ctx:
+                self.pim_graph._get(self.URL, "tok", 30)
+        self.assertIn("JSON", str(ctx.exception))
+
+    def test_run_user_reports_a_dead_graph_as_a_mailbox_error(self):
+        cfg = make_cfg(PimConf(enabled=True))
+        cfg.source = ServerConf("outlook.office365.com", 993, True,
+                                provider=prov.M365)
+        with mock.patch("postboat.pim_graph.graph_token", return_value="tok"), \
+                mock.patch("urllib.request.urlopen",
+                           side_effect=socket.timeout("timed out")):
+            result = pim.run_user(cfg, USER, dry=True)
+        self.assertTrue(result.failed)
+        self.assertIn("timed out", result.error)
+
+
+class TestRunAllKeepsGoing(unittest.TestCase):
+    def test_unexpected_error_in_one_mailbox_does_not_stop_the_rest(self):
+        binh = User("binh@cu.com", "p", "binh@moi.vn", "p", row=3)
+        ok = pim.PimResult("binh@cu.com", "binh@moi.vn", calendar_ok=2)
+        lines = []
+        with mock.patch("postboat.pim.run_user",
+                        side_effect=[RuntimeError("bat ngo"), ok]):
+            results = pim.run_all(make_cfg(), [USER, binh], emit=lines.append)
+        self.assertEqual([r.user for r in results], ["an@cu.com", "binh@cu.com"])
+        self.assertIn("RuntimeError", results[0].error)
+        self.assertIn("bat ngo", results[0].error)
+        self.assertEqual(results[0].dst_user, "an@moi.vn")
+        self.assertEqual(results[1].calendar_ok, 2)
+        self.assertTrue(any("an@cu.com  LOI" in line for line in lines))
+
+
 class TestSourceKind(unittest.TestCase):
     def test_icewarp_and_zimbra_are_dav(self):
         cfg = make_cfg()
@@ -1081,6 +1171,15 @@ class TestCliDavCopy(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn("LOI", out)
         self.assertIn("401", out)
+
+    def test_unexpected_error_still_saves_state_and_exits_1(self):
+        with mock.patch("postboat.pim.read_source",
+                        side_effect=RuntimeError("bat ngo")):
+            code, out = self.run_cli("pim")
+        self.assertEqual(code, 1, out)
+        self.assertIn("LOI", out)
+        data = pim.load_results(self.tmp / "state")
+        self.assertIn("bat ngo", data["an@cu.com"]["error"])
 
     def test_wrong_dest_collection_gives_exit_1_and_error_in_state(self):
         FakeDavHandler.missing.add("/webdav/an@moi.vn/Calendar/")

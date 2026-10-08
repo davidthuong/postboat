@@ -384,7 +384,14 @@ def run_all(cfg: Config, users: List[User], dry: bool = False,
     say = emit or (lambda _m: None)
     results: List[PimResult] = []
     for user in users:
-        result = run_user(cfg, user, dry=dry)
+        try:
+            result = run_user(cfg, user, dry=dry)
+        except Exception as exc:
+            # Mot mailbox hong khong duoc keo ca lo xuong: cac hop sau van
+            # chay, va state/pim.json van ghi de bien ban noi dung hop nao hong.
+            result = PimResult(
+                user=user.src_user, dst_user=user.dst_user,
+                error="loi khong luong truoc: %s: %s" % (type(exc).__name__, exc))
         results.append(result)
         if result.error:
             say("%s  LOI %s" % (user.src_user, result.error))

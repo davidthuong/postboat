@@ -11,6 +11,7 @@ nguyen o day, nen kiem roles ngay sau khi lay token (oauth.token_roles).
 from __future__ import annotations
 
 import html
+import http.client
 import json
 import re
 import time
@@ -36,8 +37,8 @@ CONTACT_ROLES = ("Contacts.Read", "Contacts.ReadWrite")
 # bao khac. Hai header nay ep ve text va UTC de ICS khong phai doan.
 _PREFER = 'outlook.body-content-type="text", outlook.timezone="UTC"'
 
-# Bi throttle (429) thi cho theo Retry-After roi thu lai; qua so lan nay thi
-# bao loi cho mailbox do chu khong treo ca job.
+# Bi throttle (429) hay ket noi dut giua chung thi cho roi thu lai; qua so lan
+# nay thi bao loi cho mailbox do chu khong treo ca job.
 _RETRIES = 3
 
 _DAYS = {
@@ -88,7 +89,7 @@ def _get(url: str, token: str, timeout: int) -> dict:
     for attempt in range(_RETRIES + 1):
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                raw = resp.read()
         except urllib.error.HTTPError as exc:
             body = ""
             try:
@@ -102,6 +103,22 @@ def _get(url: str, token: str, timeout: int) -> dict:
                 "Graph HTTP %s %s %s" % (exc.code, url, body))
         except urllib.error.URLError as exc:
             raise oauth.OAuthError("khong goi duoc Graph: %s" % exc.reason)
+        except (OSError, http.client.HTTPException) as exc:
+            # urllib chi boc URLError cho loi luc GUI request. Loi luc cho tra
+            # loi (timeout, reset, RemoteDisconnected) va luc doc than thi lot
+            # ra tran -- de nguyen thi mot hop cham keo sap ca lan chay `pim`.
+            if attempt < _RETRIES:
+                time.sleep(_retry_after(None))
+                continue
+            raise oauth.OAuthError(
+                "Graph ngat ket noi %d lan lien: %s (%s: %s)"
+                % (_RETRIES + 1, url, type(exc).__name__, exc))
+        try:
+            return json.loads(raw.decode("utf-8"))
+        except ValueError as exc:
+            # Trang bao tri hay proxy chen vao tra HTML voi ma 200.
+            raise oauth.OAuthError(
+                "Graph tra ve khong phai JSON: %s (%s)" % (url, exc))
     raise oauth.OAuthError("Graph throttle qua %d lan: %s" % (_RETRIES, url))
 
 
