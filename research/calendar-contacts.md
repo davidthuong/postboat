@@ -223,6 +223,7 @@ Ghi từng object:
 | Tên file `{UID}.ics` với `@` trong UID, RRULE `UNTIL` dạng UTC, vCard 3.0 | Nhận nguyên vẹn; href trả về mã hoá `%40` cho `@` |
 | Cùng phép `If-None-Match: *` nhưng trên **CardDAV** (18/09, `testrig/pimprobe.py`) | Trả **412** — Zimbra chỉ phớt lờ ở đường lịch. "Server này có tôn trọng `If-None-Match` không" là câu hỏi theo từng collection, không phải theo server |
 | Collection gõ sai tên (`/Calender/`, `/Contact/`, 08/10/2026) | PROPFIND **404**; PUT vào bên trong cũng **404**, không phải 409 như RFC 4918. Trước bản sửa 08/10, phía nguồn đọc ra 0 mục và báo "Xong", phía đích báo lỗi từng mục; giờ cả hai dừng mailbox bằng một câu có URL và dòng config cần kiểm. Server theo đúng RFC (trả 409) thì trước đây còn tệ hơn: 409 bị đếm là "đã có" |
+| Sự kiện có nhắc việc (VALARM, 08/10/2026): cuộc họp không mô tả + nhắc `DESCRIPTION:Reminder`, và việc riêng nhắc qua mail (`ACTION:EMAIL` + `ATTENDEE`) | Zimbra xuất VALARM ở **cuối** VEVENT. Bản trước 08/10: ghi chú người tham dự nối vào "Reminder" của VALARM (không ai thấy), và người nhận nhắc qua mail bị đổi thành `X-POSTBOAT-ATTENDEE` — alarm mất người nhận, việc riêng bị đếm là cuộc họp. Bản sửa: ghi chú thành `DESCRIPTION` của sự kiện, VALARM đi nguyên; Zimbra lưu đúng như vậy |
 
 **Đo thật 18/09/2026, IceWarp trên Windows (máy test của David), IceWarp → IceWarp qua WebDAV:**
 

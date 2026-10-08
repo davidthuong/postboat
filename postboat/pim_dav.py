@@ -114,10 +114,17 @@ def prepare_ics(text: str, keep_attendees: bool = False) -> str:
       - keep_attendees=True: giu nguyen va gan SCHEDULE-AGENT=CLIENT. Chi bat
         khi admin da tat scheduling CalDAV tren server dich va da thu tren
         mot hop.
+
+    Chi dung toi thuoc tinh cua chinh VEVENT. VALARM nam trong VEVENT va co
+    ATTENDEE (nguoi nhan nhac qua mail) va DESCRIPTION ("Reminder") rieng --
+    khong phai khach moi hop, khong phai mo ta cuoc hop.
     """
     out: List[str] = []
     vevent_at = -1          # vi tri BEGIN:VEVENT dang mo trong `out`
     organizer_at = -1       # vi tri dong ORGANIZER cua VEVENT do
+    description_at = -1     # DESCRIPTION cua chinh VEVENT, khong phai cua VALARM
+    child_at = -1           # BEGIN cua component con (VALARM) dau tien
+    depth = 0               # dang o trong component con cua VEVENT bao nhieu tang
     attendees: List[str] = []
     organizer = ""
     for line in unfold(text).split("\n"):
@@ -128,9 +135,19 @@ def prepare_ics(text: str, keep_attendees: bool = False) -> str:
             continue
         upper = line.upper()
         if upper.startswith("BEGIN:VEVENT"):
-            vevent_at, organizer_at = len(out), -1
+            vevent_at, organizer_at, description_at = len(out), -1, -1
+            child_at, depth = -1, 0
             attendees, organizer = [], ""
-        if key in ("ATTENDEE", "ORGANIZER") and vevent_at >= 0:
+        elif vevent_at >= 0 and key == "BEGIN":
+            if child_at < 0:
+                child_at = len(out)
+            depth += 1
+        elif vevent_at >= 0 and key == "END" and not upper.startswith("END:VEVENT"):
+            # Khong xuong duoi 0: mot END:VALARM thua ma lam depth am thi moi
+            # ATTENDEE sau do lot qua, va server dich gui lai loi moi.
+            depth = max(0, depth - 1)
+        top = vevent_at >= 0 and depth == 0
+        if key in ("ATTENDEE", "ORGANIZER") and top:
             if keep_attendees:
                 out.append(_with_schedule_agent(line))
             else:
@@ -140,10 +157,13 @@ def prepare_ics(text: str, keep_attendees: bool = False) -> str:
                     organizer, organizer_at = _cal_address(line), len(out)
                 out.append("X-POSTBOAT-" + line)
             continue
+        if key == "DESCRIPTION" and top and description_at < 0:
+            description_at = len(out)
         if upper.startswith("END:VEVENT") and vevent_at >= 0:
             if not keep_attendees:
                 if attendees:
-                    _note_attendees(out, vevent_at, organizer, attendees)
+                    _note_attendees(out, organizer, attendees,
+                                    description_at, child_at)
                 elif organizer_at >= 0:
                     # Khong co ai de moi thi ORGANIZER vo hai: tra lai nguyen.
                     out[organizer_at] = out[organizer_at][len("X-POSTBOAT-"):]
@@ -152,17 +172,24 @@ def prepare_ics(text: str, keep_attendees: bool = False) -> str:
     return "\r\n".join(out) + "\r\n"
 
 
-def _note_attendees(out: List[str], start: int, organizer: str,
-                    attendees: List[str]) -> None:
-    """Ghi 'nguoi to chuc / nguoi tham du' vao DESCRIPTION cua VEVENT dang mo."""
+def _note_attendees(out: List[str], organizer: str, attendees: List[str],
+                    description_at: int, child_at: int) -> None:
+    """Ghi 'nguoi to chuc / nguoi tham du' vao DESCRIPTION cua VEVENT dang mo.
+
+    Chua co DESCRIPTION thi chen dong moi truoc VALARM dau tien: RFC 5545 dat
+    thuoc tinh cua VEVENT truoc component con, va noi vao "Reminder" cua
+    VALARM (cach cu, gap voi moi su kien Zimbra co nhac viec) thi nguoi dung
+    khong bao gio thay.
+    """
     note = "Nguoi tham du (loi moi khong gui lai khi chuyen): " + ", ".join(attendees)
     if organizer:
         note = "Nguoi to chuc: %s. %s" % (organizer, note)
-    for i in range(start, len(out)):
-        if _prop(out[i]) == "DESCRIPTION":
-            out[i] = out[i] + "\\n\\n" + _esc_text(note)
-            return
-    out.append("DESCRIPTION:" + _esc_text(note))
+    if description_at >= 0:
+        out[description_at] = out[description_at] + "\\n\\n" + _esc_text(note)
+    elif child_at >= 0:
+        out.insert(child_at, "DESCRIPTION:" + _esc_text(note))
+    else:
+        out.append("DESCRIPTION:" + _esc_text(note))
 
 
 def filename_for(uid: str, ext: str) -> str:

@@ -30,6 +30,16 @@ Phần lớn các mục "Sửa" ở đây đến từ những cuộc migrate ch�
   quá số đó hoặc trả về thứ không phải JSON thì thành lỗi của riêng hộp đó. Lỗi
   bất ngờ khác trong một hộp cũng chỉ hỏng hộp đó: các hộp sau vẫn chạy và
   state vẫn ghi.
+- **Ghi chú người tham dự không còn lạc vào lời nhắc.** Zimbra để VALARM ở cuối
+  sự kiện, với `DESCRIPTION:Reminder` riêng. Cuộc họp không có mô tả thì danh
+  sách "Người tổ chức / Người tham dự" bị nối vào câu nhắc đó, nên người dùng
+  không bao giờ thấy; còn nhắc qua mail (`ACTION:EMAIL`) thì người nhận bị coi
+  là khách mời, bị đổi thành `X-POSTBOAT-ATTENDEE` khiến alarm mất người nhận,
+  và việc riêng bị đếm vào số "cuộc họp đã bỏ người tham dự" trên biên bản.
+  Giờ chỉ thuộc tính của chính sự kiện bị đụng tới; mô tả mới chèn trước
+  VALARM như RFC 5545 quy định. Đo trên Zimbra 8.8 lab bằng hai sự kiện Zimbra
+  tự xuất ra: bản cũ cho đúng hai lỗi trên, bản sửa thì Zimbra lưu ghi chú
+  trong mô tả và VALARM còn nguyên.
 
 ---
 

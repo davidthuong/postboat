@@ -324,6 +324,60 @@ TEL:0901234567
 END:VCARD
 """
 
+# Hai su kien Zimbra 8.8 xuat ra that (lab, 08/10/2026): cuoc hop khong co mo
+# ta nhung co nhac viec, va viec rieng nhac qua mail. VALARM nam cuoi VEVENT va
+# co DESCRIPTION/ATTENDEE rieng -- cho de ghi chu va nguoi tham du lac vao.
+ZIMBRA_ALARM_MEETING = """BEGIN:VCALENDAR
+PRODID:Zimbra-Calendar-Provider
+VERSION:2.0
+BEGIN:VEVENT
+UID:pim-t3-alarm@lab.test
+SUMMARY:Hop co nhac (T3)
+ATTENDEE;CN=Khach;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:khach@example.inval
+ id
+ORGANIZER;CN=Chu Tri:mailto:chutri@example.invalid
+DTSTART:20270112T020000Z
+DTEND:20270112T030000Z
+STATUS:CONFIRMED
+CLASS:PUBLIC
+TRANSP:OPAQUE
+LAST-MODIFIED:20261008T000000Z
+DTSTAMP:20261008T000000Z
+SEQUENCE:0
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER;RELATED=START:-PT15M
+DESCRIPTION:Reminder
+END:VALARM
+END:VEVENT
+END:VCALENDAR
+"""
+
+ZIMBRA_MAIL_ALARM = """BEGIN:VCALENDAR
+PRODID:Zimbra-Calendar-Provider
+VERSION:2.0
+BEGIN:VEVENT
+UID:pim-t3-mailalarm@lab.test
+SUMMARY:Viec rieng co nhac qua mail (T3)
+DTSTART:20270113T020000Z
+DTEND:20270113T030000Z
+STATUS:CONFIRMED
+CLASS:PUBLIC
+TRANSP:OPAQUE
+LAST-MODIFIED:20261008T000000Z
+DTSTAMP:20261008T000000Z
+SEQUENCE:0
+BEGIN:VALARM
+ACTION:EMAIL
+TRIGGER;RELATED=START:-PT30M
+DESCRIPTION:Sap toi gio
+SUMMARY:Nhac viec
+ATTENDEE:mailto:pim-src@lab.test
+END:VALARM
+END:VEVENT
+END:VCALENDAR
+"""
+
 # Than 409 cua server CalDAV khi UID da nam duoi mot ten file khac.
 NO_UID_CONFLICT = (
     b'<?xml version="1.0" encoding="utf-8"?>'
@@ -385,6 +439,74 @@ class TestIcsHelpers(unittest.TestCase):
         self.assertIn("\r\nORGANIZER:mailto:an@cu.com\r\n", out)
         self.assertNotIn("X-POSTBOAT", out)
         self.assertNotIn("DESCRIPTION", out)
+
+    def test_note_goes_to_the_event_not_the_reminder(self):
+        """Truoc day: cuoc hop khong co mo ta thi ghi chu bi noi vao
+        'DESCRIPTION:Reminder' cua VALARM -- nguoi dung khong bao gio thay."""
+        from postboat.pim_dav import prepare_ics
+        lines = prepare_ics(ZIMBRA_ALARM_MEETING).split("\r\n")
+        self.assertIn("DESCRIPTION:Reminder", lines)
+        notes = [i for i, l in enumerate(lines)
+                 if l.startswith("DESCRIPTION:Nguoi to chuc: Chu Tri")]
+        self.assertEqual(len(notes), 1)
+        self.assertIn("Khach <khach@example.invalid>", lines[notes[0]])
+        # RFC 5545: thuoc tinh cua VEVENT dung truoc component con.
+        self.assertLess(notes[0], lines.index("BEGIN:VALARM"))
+        self.assertEqual(lines[lines.index("END:VALARM") + 1], "END:VEVENT")
+
+    def test_event_description_gets_the_note_when_there_is_a_reminder(self):
+        from postboat.pim_dav import prepare_ics
+        ics = ZIMBRA_ALARM_MEETING.replace(
+            "SUMMARY:Hop co nhac (T3)\n", "SUMMARY:Hop co nhac (T3)\nDESCRIPTION:Agenda\n")
+        out = prepare_ics(ics)
+        self.assertIn("\r\nDESCRIPTION:Agenda\\n\\nNguoi to chuc", out)
+        self.assertIn("\r\nDESCRIPTION:Reminder\r\n", out)
+        self.assertEqual(out.count("DESCRIPTION:"), 2)
+
+    def test_mail_reminder_recipient_is_not_a_meeting_attendee(self):
+        """ATTENDEE trong VALARM ACTION:EMAIL la nguoi nhan nhac, khong phai
+        khach moi hop. Doi no thi alarm thieu ATTENDEE bat buoc, va viec rieng
+        bi dem la cuoc hop da vo hieu hoa."""
+        from postboat.pim_dav import prepare_ics
+        for keep in (False, True):
+            with self.subTest(keep_attendees=keep):
+                out = prepare_ics(ZIMBRA_MAIL_ALARM, keep_attendees=keep)
+                self.assertIn("\r\nATTENDEE:mailto:pim-src@lab.test\r\n", out)
+                self.assertNotIn("X-POSTBOAT", out)
+                self.assertNotIn("SCHEDULE-AGENT", out)
+                self.assertNotIn("Nguoi tham du", out)
+
+    def test_master_and_exception_each_keep_their_own_note_and_reminder(self):
+        from postboat.pim_dav import prepare_ics
+        master, _, tail = ZIMBRA_ALARM_MEETING.partition("END:VEVENT\n")
+        start = master.index("BEGIN:VEVENT")
+        exception = master[start:].replace(
+            "DTSTART:20270112T020000Z\n",
+            "RECURRENCE-ID:20270119T020000Z\nDTSTART:20270119T040000Z\n")
+        ics = (master.replace("SEQUENCE:0\n", "SEQUENCE:0\nRRULE:FREQ=WEEKLY\n")
+               + "END:VEVENT\n" + exception + "END:VEVENT\n" + tail)
+        lines = prepare_ics(ics).split("\r\n")
+        begins = [i for i, l in enumerate(lines) if l == "BEGIN:VEVENT"]
+        self.assertEqual(len(begins), 2)
+        for start in begins:
+            end = lines.index("END:VEVENT", start)
+            block = lines[start:end]
+            alarm = block.index("BEGIN:VALARM")
+            notes = [i for i, l in enumerate(block)
+                     if l.startswith("DESCRIPTION:Nguoi to chuc")]
+            self.assertEqual(len(notes), 1, block)
+            self.assertLess(notes[0], alarm)
+            self.assertIn("DESCRIPTION:Reminder", block[alarm:])
+
+    def test_stray_end_does_not_let_attendees_through(self):
+        """ICS hong (END:VALARM khong co BEGIN) khong duoc lam ATTENDEE sau do
+        di nguyen sang dich -- do la cho server gui lai loi moi."""
+        from postboat.pim_dav import prepare_ics
+        ics = ICS_MEETING.replace("SUMMARY:Hop tuan\n",
+                                  "SUMMARY:Hop tuan\nEND:VALARM\n")
+        out = prepare_ics(ics)
+        self.assertNotIn("\r\nATTENDEE", out)
+        self.assertIn("X-POSTBOAT-ATTENDEE", out)
 
     def test_looks_like_rejects_html(self):
         from postboat.pim_dav import looks_like
